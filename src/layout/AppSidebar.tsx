@@ -16,6 +16,8 @@ import {
   FolderIcon,
   DollarLineIcon,
   LockIcon,
+  PlusIcon,
+  BellIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
@@ -85,6 +87,69 @@ const navItems: NavItem[] = [
   },
 ];
 
+const receptionNavItems: NavItem[] = [
+  {
+    icon: <GridIcon />,
+    name: "Dashboard réception",
+    path: "/reception",
+  },
+  {
+    icon: <UserCircleIcon />,
+    name: "Patients",
+    path: "/reception/patients",
+  },
+  {
+    icon: <PlusIcon />,
+    name: "Nouvelle admission",
+    path: "/reception/admission",
+  },
+  {
+    icon: <CalenderIcon />,
+    name: "Rendez-vous",
+    path: "/reception/rendez-vous",
+  },
+  {
+    icon: <TimeIcon />,
+    name: "File d'attente",
+    path: "/reception/file-attente",
+  },
+  {
+    icon: <BoxCubeIcon />,
+    name: "Hospitalisations",
+    path: "/reception/hospitalisations",
+  },
+  {
+    icon: <DocsIcon />,
+    name: "Dossiers patients",
+    path: "/reception/dossiers",
+  },
+  {
+    icon: <ChatIcon />,
+    name: "Messages internes",
+    path: "/reception/messages",
+  },
+  {
+    icon: <DollarLineIcon />,
+    name: "Facturation & paiements",
+    path: "/reception/paiements",
+  },
+  {
+    icon: <BellIcon />,
+    name: "Urgences & alertes",
+    path: "/reception/urgences",
+  },
+  {
+    icon: <FolderIcon />,
+    name: "Historique admissions",
+    path: "/reception/historique",
+  },
+  {
+    icon: <LockIcon />,
+    name: "Compte réception",
+    path: "/reception/profile",
+  },
+];
+
 const othersItems: NavItem[] = [];
 
 const AppSidebar: React.FC = () => {
@@ -95,6 +160,8 @@ const AppSidebar: React.FC = () => {
     type: "main" | "others";
     index: number;
   } | null>(null);
+  const isReceptionSection = location.pathname.startsWith("/reception");
+  const activeNavItems = isReceptionSection ? receptionNavItems : navItems;
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
     {}
   );
@@ -338,12 +405,12 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
-                  "PATIENT INTERFACE"
+                  isReceptionSection ? "INTERFACE RÉCEPTION" : "PATIENT INTERFACE"
                 ) : (
                   <HorizontaLDots className="size-6" />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(activeNavItems, "main")}
             </div>
             {othersItems.length > 0 && (
               <div className="">

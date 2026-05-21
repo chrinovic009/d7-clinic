@@ -1,5 +1,5 @@
-import PageMeta from "../components/common/PageMeta";
-import Badge from "../components/ui/badge/Badge";
+import PageMeta from "../../components/common/PageMeta";
+import Badge from "../../components/ui/badge/Badge";
 import {
   User,
   Calendar,

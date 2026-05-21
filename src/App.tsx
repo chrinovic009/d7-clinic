@@ -15,16 +15,18 @@ import Calendar from "./pages/Calendar";
 import BasicTables from "./pages/Tables/BasicTables";
 import FormElements from "./pages/Forms/FormElements";
 import Blank from "./pages/Blank";
-import DossierMedical from "./pages/DossierMedical";
+import DossierMedical from "./pages/Patient/DossierMedical";
 import Guide from "./pages/Guide";
 import Hospitalisation from "./pages/Hospitalisation";
-import SuiviQuotidien from "./pages/SuiviQuotidien";
-import Messages from "./pages/Messages";
-import MesTraitements from "./pages/MesTraitements";
-import HistoriqueMedical from "./pages/HistoriqueMedical";
+import SuiviQuotidien from "./pages/Patient/SuiviQuotidien";
+import Messages from "./pages/Patient/Messages";
+import MesTraitements from "./pages/Patient/MesTraitements";
+import HistoriqueMedical from "./pages/Patient/HistoriqueMedical";
+import ReceptionDashboard from "./pages/Reception/Dashboard";
+import ReceptionPage from "./pages/Reception/ReceptionPage";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
-import Home from "./pages/Dashboard/Home";
+import Home from "./pages/Patient/Home";
 
 export default function App() {
   return (
@@ -48,6 +50,18 @@ export default function App() {
             <Route path="/suivi-quotidien" element={<SuiviQuotidien />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/historique-medical" element={<HistoriqueMedical />} />
+            <Route path="/reception" element={<ReceptionDashboard />} />
+            <Route path="/reception/patients" element={<ReceptionPage />} />
+            <Route path="/reception/admission" element={<ReceptionPage />} />
+            <Route path="/reception/rendez-vous" element={<ReceptionPage />} />
+            <Route path="/reception/file-attente" element={<ReceptionPage />} />
+            <Route path="/reception/hospitalisations" element={<ReceptionPage />} />
+            <Route path="/reception/dossiers" element={<ReceptionPage />} />
+            <Route path="/reception/messages" element={<ReceptionPage />} />
+            <Route path="/reception/paiements" element={<ReceptionPage />} />
+            <Route path="/reception/urgences" element={<ReceptionPage />} />
+            <Route path="/reception/historique" element={<ReceptionPage />} />
+            <Route path="/reception/profile" element={<ReceptionPage />} />
             <Route path="/paiements" element={<FormElements />} />
             <Route path="/profil-securite" element={<UserProfiles />} />
 

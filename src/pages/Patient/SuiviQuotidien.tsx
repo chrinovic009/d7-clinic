@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import PageBreadcrumb from "../components/common/PageBreadCrumb";
-import PageMeta from "../components/common/PageMeta";
-import { CheckCircleIcon, CloseIcon } from "../icons";
+import PageBreadcrumb from "../../components/common/PageBreadCrumb";
+import PageMeta from "../../components/common/PageMeta";
+import { CheckCircleIcon, CloseIcon } from "../../icons";
 
 const periods = ["Matin", "Après-midi", "Soir"];
 const symptomNames = ["Douleur", "Fatigue", "Nausée", "Fièvre", "Vertige", "Toux", "Respiration"];
