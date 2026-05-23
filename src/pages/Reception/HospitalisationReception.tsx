@@ -85,6 +85,11 @@ const patientTimeline = [
 
 export default function HospitalisationReception() {
   const [selectedHospitalisation, setSelectedHospitalisation] = useState<typeof hospitalisations[number] | null>(null);
+  const [modal, setModal] = useState<null | 'new' | 'search' | 'urgent' | 'discharge'>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roomFilter, setRoomFilter] = useState<'all'|'available'|'occupied'|'cleaning'>('all');
+  const [viewFilter, setViewFilter] = useState<'all'|'admissions'|'discharges'|'services'>('all');
+  const [dischargeQuery, setDischargeQuery] = useState("");
 
   const stats = useMemo(
     () => ({
@@ -98,6 +103,27 @@ export default function HospitalisationReception() {
     []
   );
 
+  const filteredRooms = useMemo(() => {
+    if (roomFilter === 'all') return roomInventory;
+    if (roomFilter === 'available') return roomInventory.filter(r => r.status === 'Disponible');
+    if (roomFilter === 'occupied') return roomInventory.filter(r => r.status === 'Complète');
+    if (roomFilter === 'cleaning') return roomInventory.filter(r => r.status === 'Nettoyage');
+    return roomInventory;
+  }, [roomFilter]);
+
+  const filteredHospitalisations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return hospitalisations.filter(h => {
+      if (q) {
+        if (!(h.patient.toLowerCase().includes(q) || h.room.toLowerCase().includes(q) || h.service.toLowerCase().includes(q))) return false;
+      }
+      if (viewFilter === 'admissions') return h.status.toLowerCase().includes('admission') || !!h.admissionDate;
+      if (viewFilter === 'discharges') return h.status.toLowerCase().includes('sortie');
+      if (viewFilter === 'services') return !!h.service;
+      return true;
+    });
+  }, [searchQuery, viewFilter]);
+
   return (
     <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 min-h-screen">
       <PageMeta
@@ -108,21 +134,26 @@ export default function HospitalisationReception() {
 
       <div className="space-y-6">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "Nouvelle hospitalisation", icon: "➕" },
-            { label: "Rechercher un patient hospitalisé", icon: "🔍" },
-            { label: "Voir chambres disponibles", icon: "🛏️" },
-            { label: "Admission urgence", icon: "🚑" },
-            { label: "Préparer sortie", icon: "📤" },
-          ].map((action) => (
-            <button
-              key={action.label}
-              className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-            >
-              <div className="mb-2 text-lg">{action.icon}</div>
-              {action.label}
-            </button>
-          ))}
+          <button onClick={() => setModal('new')} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="mb-2 text-lg">➕</div>
+            Nouvelle hospitalisation
+          </button>
+          <button onClick={() => setModal('search')} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="mb-2 text-lg">🔍</div>
+            Rechercher un patient hospitalisé
+          </button>
+          <button onClick={() => setRoomFilter('available')} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="mb-2 text-lg">🛏️</div>
+            Voir chambres disponibles
+          </button>
+          <button onClick={() => setModal('urgent')} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="mb-2 text-lg">🚑</div>
+            Admission urgence
+          </button>
+          <button onClick={() => setModal('discharge')} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="mb-2 text-lg">📤</div>
+            Préparer sortie
+          </button>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-4">
@@ -168,6 +199,24 @@ export default function HospitalisationReception() {
               </span>
             </div>
 
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <input value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} placeholder="Recherche patient, chambre ou service" className="rounded-md border border-gray-300 px-3 py-2 text-sm w-64" />
+                <select value={viewFilter} onChange={(e)=>setViewFilter(e.target.value as any)} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                  <option value="all">Tous</option>
+                  <option value="admissions">Admissions</option>
+                  <option value="discharges">Sorties</option>
+                  <option value="services">Services</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={()=>setRoomFilter('all')} className={`px-3 py-1 rounded text-sm ${roomFilter==='all'?'bg-slate-200':'border'}`}>Tous</button>
+                <button onClick={()=>setRoomFilter('available')} className={`px-3 py-1 rounded text-sm ${roomFilter==='available'?'bg-emerald-100':'border'}`}>Disponibles</button>
+                <button onClick={()=>setRoomFilter('occupied')} className={`px-3 py-1 rounded text-sm ${roomFilter==='occupied'?'bg-red-100':'border'}`}>Occupées</button>
+                <button onClick={()=>setRoomFilter('cleaning')} className={`px-3 py-1 rounded text-sm ${roomFilter==='cleaning'?'bg-amber-100':'border'}`}>Nettoyage</button>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
@@ -182,7 +231,7 @@ export default function HospitalisationReception() {
                   </tr>
                 </thead>
                 <tbody>
-                  {hospitalisations.map((item) => (
+                  {filteredHospitalisations.map((item) => (
                     <tr key={item.id} className="border-b border-slate-200 dark:border-slate-700">
                       <td className="py-3 px-3 text-slate-900 dark:text-white">{item.patient}</td>
                       <td className="py-3 px-3 text-slate-600 dark:text-slate-300">{item.room}</td>
@@ -211,7 +260,7 @@ export default function HospitalisationReception() {
             <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-slate-900">
               <h4 className="text-base font-semibold text-slate-900 dark:text-white">Gestion des chambres</h4>
               <div className="mt-4 space-y-3">
-                {roomInventory.map((room) => (
+                {filteredRooms.map((room) => (
                   <div key={room.room} className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-white">{room.room}</p>
@@ -238,6 +287,122 @@ export default function HospitalisationReception() {
             </div>
           </aside>
         </div>
+
+        {/* Modals */}
+        {modal === 'new' && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Nouvelle hospitalisation</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Remplissez rapidement les champs pour enregistrer une hospitalisation.</p>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input placeholder="Nom patient" className="rounded border px-3 py-2" />
+                <select className="rounded border px-3 py-2">
+                  <option>Service</option>
+                  {['Cardiologie','Chirurgie','Urgences','Orthopédie'].map(s=> <option key={s}>{s}</option>)}
+                </select>
+                <select className="rounded border px-3 py-2">
+                  <option>Chambre (sélection rapide)</option>
+                  {roomInventory.filter(r=>r.status==='Disponible').map(r=> <option key={r.room}>{r.room} — {r.service}</option>)}
+                </select>
+                <select className="rounded border px-3 py-2">
+                  <option>Médecin référent</option>
+                  {['Dr Mukendi','Dr Rapid','Dr Kabasele','Dr Mabiala'].map(d=> <option key={d}>{d}</option>)}
+                </select>
+                <input type="datetime-local" className="rounded border px-3 py-2 sm:col-span-2" />
+                <div className="sm:col-span-2 flex gap-2 justify-end">
+                  <button onClick={() => setModal(null)} className="rounded border px-4 py-2">Annuler</button>
+                  <button onClick={() => { setModal(null); /* simulate save */ }} className="rounded bg-slate-900 text-white px-4 py-2">Enregistrer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal === 'search' && (
+          <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-24">
+            <div className="w-full max-w-4xl rounded-xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recherche patient</h3>
+                <button onClick={()=>setModal(null)} className="text-sm text-slate-600">Fermer</button>
+              </div>
+              <input autoFocus value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} placeholder="Tapez nom, téléphone, chambre..." className="mt-3 w-full rounded border px-3 py-2" />
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-slate-500">
+                      <th className="py-2 px-2">Patient</th>
+                      <th className="py-2 px-2">Chambre</th>
+                      <th className="py-2 px-2">Service</th>
+                      <th className="py-2 px-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHospitalisations.map(h => (
+                      <tr key={h.id} className="border-t">
+                        <td className="py-2 px-2">{h.patient}</td>
+                        <td className="py-2 px-2">{h.room}</td>
+                        <td className="py-2 px-2">{h.service}</td>
+                        <td className="py-2 px-2"><button onClick={()=>{ setSelectedHospitalisation(h); setModal(null); }} className="rounded px-2 py-1 bg-slate-100">Choisir</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal === 'urgent' && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-xl rounded-xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Admission urgente</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Formulaire rapide pour admission en urgence.</p>
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <input placeholder="Nom patient" className="rounded border px-3 py-2" />
+                <select className="rounded border px-3 py-2">
+                  <option>Urgence ➜ service</option>
+                  <option>Urgences</option>
+                </select>
+                <select className="rounded border px-3 py-2">
+                  <option>Chambre (si disponible)</option>
+                  {roomInventory.filter(r=>r.status==='Disponible').map(r=> <option key={r.room}>{r.room}</option>)}
+                </select>
+                <div className="flex justify-end gap-2">
+                  <button onClick={()=>setModal(null)} className="rounded border px-4 py-2">Annuler</button>
+                  <button onClick={()=>{ setModal(null); /* simulate */ }} className="rounded bg-red-600 text-white px-4 py-2">Admettre</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal === 'discharge' && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Préparer sortie</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Recherchez par initiales (les 3 premières lettres) pour filtrer rapidement.</p>
+              <input value={dischargeQuery} onChange={(e)=>setDischargeQuery(e.target.value)} placeholder="Tapez 3 premières lettres" className="mt-3 w-full rounded border px-3 py-2" />
+              <div className="mt-4 max-h-60 overflow-auto">
+                <ul className="space-y-2">
+                  {hospitalisations.filter(h=>h.patient.toLowerCase().startsWith(dischargeQuery.toLowerCase())).map(h=> (
+                    <li key={h.id} className="flex items-center justify-between rounded border p-3">
+                      <div>
+                        <div className="font-semibold">{h.patient}</div>
+                        <div className="text-sm text-slate-500">{h.room} — {h.service}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={()=>{ /* simulate authorize */ alert(`${h.patient} : sortie autorisée (simulation)`); setModal(null); }} className="rounded bg-slate-900 text-white px-3 py-1">Autoriser</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button onClick={()=>setModal(null)} className="rounded border px-4 py-2">Fermer</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {selectedHospitalisation && (
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-slate-900">

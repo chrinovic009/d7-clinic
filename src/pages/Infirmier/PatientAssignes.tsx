@@ -104,6 +104,9 @@ export default function PatientAssignes() {
   const [roomFilter, setRoomFilter] = useState("Tous");
   const [serviceFilter, setServiceFilter] = useState("Tous");
 
+  // Use mutable patients state so nurses can update vitals
+  const [patients, setPatients] = useState<(typeof patientData)[0][]>(patientData);
+
   // Modals state
   const [selectedPatientForModal, setSelectedPatientForModal] = useState<(typeof patientData)[0] | null>(null);
   const [openModal, setOpenModal] = useState<"file" | "observation" | "medication" | "urgency" | null>(null);
@@ -117,26 +120,40 @@ export default function PatientAssignes() {
   const [urgentPatients, setUrgentPatients] = useState<Set<string>>(new Set());
 
   const rooms = useMemo(
-    () => ["Tous", ...new Set(patientData.map((patient) => patient.room))],
-    []
+    () => ["Tous", ...new Set(patients.map((patient) => patient.room))],
+    [patients]
   );
   const services = useMemo(
-    () => ["Tous", ...new Set(patientData.map((patient) => patient.service))],
-    []
+    () => ["Tous", ...new Set(patients.map((patient) => patient.service))],
+    [patients]
   );
 
   const counts = useMemo(
     () => ({
-      total: patientData.length,
-      critique: patientData.filter((patient) => patient.status === "Critique").length,
-      surveille: patientData.filter((patient) => patient.status === "Surveillé").length,
-      stable: patientData.filter((patient) => patient.status === "Stable").length,
+      total: patients.length,
+      critique: patients.filter((patient) => patient.status === "Critique").length,
+      surveille: patients.filter((patient) => patient.status === "Surveillé").length,
+      stable: patients.filter((patient) => patient.status === "Stable").length,
     }),
-    []
+    [patients]
   );
 
+  const formatRelativeTime = (ts?: number) => {
+    if (!ts) return "";
+    const sec = Math.floor((Date.now() - ts) / 1000);
+    if (sec < 60) return `il y a ${sec} sec${sec > 1 ? 's' : ''}`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `il y a ${min} min`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `il y a ${hrs} heure${hrs > 1 ? 's' : ''}`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+    const months = Math.floor(days / 30);
+    return `il y a ${months} mois`;
+  };
+
   const filteredPatients = useMemo(() => {
-    return patientData
+    return patients
       .filter((patient) => {
         const query = searchQuery.toLowerCase();
         const matchesSearch =
@@ -186,6 +203,33 @@ export default function PatientAssignes() {
     setOpenModal("urgency");
   };
 
+  // Vitals modal for nurses: quick entry with suggestions
+  const [openVitalsPatientId, setOpenVitalsPatientId] = useState<string | null>(null);
+  const [vitalsForm, setVitalsForm] = useState({ temperature: "", bloodPressure: "", spo2: "", heartRate: "", notes: "", alerts: [] as string[] });
+  // Reception queue: map patientId -> arrival timestamp (ms)
+  const [receptionQueue, setReceptionQueue] = useState<Record<string, number>>(() => {
+    const obj: Record<string, number> = {};
+    patientData.forEach(p => { obj[p.id] = Date.now(); });
+    return obj;
+  });
+
+  const openVitalsModal = (patient: (typeof patientData)[0]) => {
+    setOpenVitalsPatientId(patient.id);
+    setVitalsForm({ temperature: patient.temperature || "", bloodPressure: patient.bloodPressure || "", spo2: patient.spo2 || "", heartRate: patient.heartRate || "", notes: "", alerts: [] });
+  };
+
+  const handleSaveVitals = () => {
+    if (!openVitalsPatientId) return;
+    setPatients((prev) => prev.map(p => p.id === openVitalsPatientId ? { ...p, temperature: vitalsForm.temperature, bloodPressure: vitalsForm.bloodPressure, spo2: vitalsForm.spo2, heartRate: vitalsForm.heartRate } : p));
+    // remove from quick-access bubbles so it disappears from the top row
+    setReceptionQueue(prev => {
+      const n = { ...prev };
+      delete n[openVitalsPatientId];
+      return n;
+    });
+    setOpenVitalsPatientId(null);
+  };
+
   const handleDeclareUrgency = () => {
     if (!selectedPatientForModal) return;
     setUrgentPatients((prev) => new Set(prev).add(selectedPatientForModal.id));
@@ -233,6 +277,7 @@ export default function PatientAssignes() {
               Patients assignés
             </h1>
           </div>
+          
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm text-slate-500 dark:text-slate-400">Total patients</p>
@@ -254,8 +299,10 @@ export default function PatientAssignes() {
         </div>
 
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Recherche</span>
                 <input
@@ -265,6 +312,7 @@ export default function PatientAssignes() {
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </label>
+
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">État</span>
                 <select
@@ -277,6 +325,7 @@ export default function PatientAssignes() {
                   ))}
                 </select>
               </label>
+
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Chambre</span>
                 <select
@@ -289,6 +338,7 @@ export default function PatientAssignes() {
                   ))}
                 </select>
               </label>
+
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Service</span>
                 <select
@@ -301,6 +351,7 @@ export default function PatientAssignes() {
                   ))}
                 </select>
               </label>
+
             </div>
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Résultats</p>
@@ -309,6 +360,7 @@ export default function PatientAssignes() {
               </p>
             </div>
           </div>
+
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-950">
             <p className="font-semibold text-slate-900 dark:text-white">Instructions rapides</p>
             <ul className="mt-4 space-y-3 text-slate-600 dark:text-slate-300">
@@ -317,8 +369,31 @@ export default function PatientAssignes() {
               <li>Accéder au dossier ou déclarer urgence en un clic.</li>
             </ul>
           </div>
+
         </div>
       </section>
+
+      {/* Quick access bubbles (patients envoyés par la réception) */}
+      <div className="mt-6 mb-4 flex items-center gap-3 overflow-x-auto py-2">
+        {patients.filter(p => !!receptionQueue[p.id]).map((p) => {
+          const isUrg = urgentPatients.has(p.id);
+          const pillClass = isUrg ? "bg-red-100 text-red-700" : statusColors[p.status] || "bg-slate-100 text-slate-900";
+          return (
+            <button
+              key={p.id}
+              onClick={() => openVitalsModal(p)}
+              className={`flex-shrink-0 inline-flex items-center gap-3 rounded-full border px-3 py-2 ${pillClass} hover:opacity-95`}
+            >
+              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-900">{p.avatar}</div>
+              <div className="text-left">
+                <div className="text-sm font-semibold">{p.name}</div>
+                <div className="text-xs">{p.service} • <span className="font-medium">{p.status}</span></div>
+                <div className="text-xs text-slate-500">{formatRelativeTime(receptionQueue[p.id])}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       <section className="mt-6 space-y-4">
         {filteredPatients.map((patient) => {
@@ -667,6 +742,86 @@ export default function PatientAssignes() {
                 >
                   Annuler
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* VITALS QUICK ENTRY MODAL */}
+      {openVitalsPatientId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Prise des constantes</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{patients.find(p => p.id === openVitalsPatientId)?.name}</h3>
+              </div>
+              <button
+                onClick={() => setOpenVitalsPatientId(null)}
+                className="rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Température (°C)</p>
+                <div className="mt-2 flex gap-2">
+                  {['36.5','37.0','38.0','39.0'].map(v => (
+                    <button key={v} onClick={() => setVitalsForm(prev => ({ ...prev, temperature: v }))} className={`rounded-2xl px-3 py-2 text-sm ${v === vitalsForm.temperature ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}`}>
+                      {v}
+                    </button>
+                  ))}
+                  <input value={vitalsForm.temperature} onChange={(e) => setVitalsForm(prev => ({ ...prev, temperature: e.target.value }))} placeholder="Autre" className="ml-2 w-40 rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Tension (TA)</p>
+                <div className="mt-2 flex gap-2">
+                  {['12/8','13/8','14/9','15/10'].map(v => (
+                    <button key={v} onClick={() => setVitalsForm(prev => ({ ...prev, bloodPressure: v }))} className={`rounded-2xl px-3 py-2 text-sm ${v === vitalsForm.bloodPressure ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}`}>
+                      {v}
+                    </button>
+                  ))}
+                  <input value={vitalsForm.bloodPressure} onChange={(e) => setVitalsForm(prev => ({ ...prev, bloodPressure: e.target.value }))} placeholder="Autre" className="ml-2 w-40 rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">SpO2</p>
+                <div className="mt-2 flex gap-2">
+                  {['98%','95%','92%','88%'].map(v => (
+                    <button key={v} onClick={() => setVitalsForm(prev => ({ ...prev, spo2: v }))} className={`rounded-2xl px-3 py-2 text-sm ${v === vitalsForm.spo2 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}`}>
+                      {v}
+                    </button>
+                  ))}
+                  <input value={vitalsForm.spo2} onChange={(e) => setVitalsForm(prev => ({ ...prev, spo2: e.target.value }))} placeholder="Autre" className="ml-2 w-42 rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Fréquence cardiaque (bpm)</p>
+                <div className="mt-2 flex gap-2">
+                  {['70','80','90','110'].map(v => (
+                    <button key={v} onClick={() => setVitalsForm(prev => ({ ...prev, heartRate: v + ' bpm' }))} className={`rounded-2xl px-3 py-2 text-sm ${v + ' bpm' === vitalsForm.heartRate ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}`}>
+                      {v}
+                    </button>
+                  ))}
+                  <input value={vitalsForm.heartRate} onChange={(e) => setVitalsForm(prev => ({ ...prev, heartRate: e.target.value }))} placeholder="Autre" className="ml-2 w-50 rounded-2xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">Notes rapides</span>
+                <input value={vitalsForm.notes} onChange={(e) => setVitalsForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="Ex: patient pâle, respiration rapide..." className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900" />
+              </label>
+
+              <div className="flex gap-3 pt-4">
+                <button onClick={handleSaveVitals} className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Enregistrer</button>
+                <button onClick={() => setOpenVitalsPatientId(null)} className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900">Annuler</button>
               </div>
             </div>
           </div>
