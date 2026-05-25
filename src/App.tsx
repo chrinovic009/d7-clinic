@@ -33,14 +33,14 @@ import HospitalisationReception from "./pages/Reception/HospitalisationReception
 import HistoriqueReception from "./pages/Reception/HistoriqueReception";
 import DashboardInfirmier from "./pages/Infirmier/DashboardInfirmier";
 import PatientAssignes from "./pages/Infirmier/PatientAssignes";
-import MessagesInfirmier from "./pages/Infirmier/MessagesInfirmier"
-import ProfileInfirmier from "./pages/Infirmier/ProfileInfirmier"
-import RoundsInfirmier from "./pages/Infirmier/Rounds"
-import HospitalisationInfirmier from "./pages/Infirmier/HospitalisationsSuivi"
+import MessagesInfirmier from "./pages/Infirmier/MessagesInfirmier";
+import ProfileInfirmier from "./pages/Infirmier/ProfileInfirmier";
+import RoundsInfirmier from "./pages/Infirmier/Rounds";
+import HospitalisationInfirmier from "./pages/Infirmier/HospitalisationsSuivi";
 import DashboardMedecin from "./pages/Medecin/DashboardMedecin";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
-import Home from "./pages/Patient/Home";
+import { RequireAuth, RoleGuard, HomeRedirect } from "./components/auth/RequireAuth";
 
 export default function App() {
   return (
@@ -49,8 +49,8 @@ export default function App() {
         <ScrollToTop />
         <Routes>
           {/* Dashboard Layout */}
-          <Route element={<AppLayout />}>
-            <Route index path="/" element={<Home />} />
+          <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
+            <Route index path="/" element={<HomeRedirect />} />
 
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />
@@ -64,25 +64,25 @@ export default function App() {
             <Route path="/suivi-quotidien" element={<SuiviQuotidien />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/historique-medical" element={<HistoriqueMedical />} />
-            <Route path="/reception" element={<ReceptionDashboard />} />
-            <Route path="/reception/patients" element={<ReceptionPatients />} />
-            <Route path="/reception/admission" element={<ReceptionAdmission />} />
-            <Route path="/reception/rendez-vous" element={<RendezVousRecpetion />} />
-            <Route path="/reception/file-attente" element={<ReceptionPage />} />
-            <Route path="/reception/hospitalisations" element={<HospitalisationReception />} />
-            <Route path="/reception/dossiers" element={<ReceptionPage />} />
-            <Route path="/reception/messages" element={<ReceptionMessages />} />
-            <Route path="/reception/paiements" element={<ReceptionPage />} />
-            <Route path="/reception/urgences" element={<ReceptionPage />} />
-            <Route path="/reception/historique" element={<HistoriqueReception />} />
-            <Route path="/reception/profile" element={<ReceptionProfile />} />
-            <Route path="/nurse" element={<DashboardInfirmier />} />
-            <Route path="/nurse/patients" element={<PatientAssignes />} />
-            <Route path="/nurse/rounds" element={<RoundsInfirmier />} />
-            <Route path="/nurse/hospitalized" element={<HospitalisationInfirmier />} />
-            <Route path="/nurse/messages" element={<MessagesInfirmier />} />
-            <Route path="/nurse/profile" element={<ProfileInfirmier />} />
-            <Route path="/doctor/*" element={<DashboardMedecin />} />
+            <Route path="/reception" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionDashboard /></RoleGuard>} />
+            <Route path="/reception/patients" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionPatients /></RoleGuard>} />
+            <Route path="/reception/admission" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionAdmission /></RoleGuard>} />
+            <Route path="/reception/rendez-vous" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><RendezVousRecpetion /></RoleGuard>} />
+            <Route path="/reception/file-attente" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionPage /></RoleGuard>} />
+            <Route path="/reception/hospitalisations" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><HospitalisationReception /></RoleGuard>} />
+            <Route path="/reception/dossiers" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionPage /></RoleGuard>} />
+            <Route path="/reception/messages" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionMessages /></RoleGuard>} />
+            <Route path="/reception/paiements" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionPage /></RoleGuard>} />
+            <Route path="/reception/urgences" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionPage /></RoleGuard>} />
+            <Route path="/reception/historique" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><HistoriqueReception /></RoleGuard>} />
+            <Route path="/reception/profile" element={<RoleGuard allowedRoles={["RECEPTIONIST"]}><ReceptionProfile /></RoleGuard>} />
+            <Route path="/nurse" element={<RoleGuard allowedRoles={["NURSE"]}><DashboardInfirmier /></RoleGuard>} />
+            <Route path="/nurse/patients" element={<RoleGuard allowedRoles={["NURSE"]}><PatientAssignes /></RoleGuard>} />
+            <Route path="/nurse/rounds" element={<RoleGuard allowedRoles={["NURSE"]}><RoundsInfirmier /></RoleGuard>} />
+            <Route path="/nurse/hospitalized" element={<RoleGuard allowedRoles={["NURSE"]}><HospitalisationInfirmier /></RoleGuard>} />
+            <Route path="/nurse/messages" element={<RoleGuard allowedRoles={["NURSE"]}><MessagesInfirmier /></RoleGuard>} />
+            <Route path="/nurse/profile" element={<RoleGuard allowedRoles={["NURSE"]}><ProfileInfirmier /></RoleGuard>} />
+            <Route path="/doctor/" element={<RoleGuard allowedRoles={["PHYSICIAN"]}><DashboardMedecin /></RoleGuard>} />
             <Route path="/paiements" element={<FormElements />} />
             <Route path="/profil-securite" element={<UserProfiles />} />
 

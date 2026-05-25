@@ -4,68 +4,70 @@ import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
+import { useAuth } from "../../context/AuthContext";
 
 export default function UserInfoCard() {
   const { isOpen, openModal, closeModal } = useModal();
-  const [firstName, setFirstName] = useState("Nyembo");
-  const [lastName, setLastName] = useState("Chrinovic");
-  const [email, setEmail] = useState("chrinovicnyembo009@gmail.com");
-  const [phone, setPhone] = useState("+243 84 862 1712");
-  const [bio, setBio] = useState(
-    "Patient en bonne santé, sans antécédents médicaux significatifs. Aucune allergie connue. Pas de médicaments réguliers. Mode de vie actif et équilibré."
-  );
-  const [facebook, setFacebook] = useState("https://www.facebook.com/PimjoHQ");
-  const [xcom, setXcom] = useState("https://x.com/PimjoHQ");
-  const [linkedin, setLinkedin] = useState("https://www.linkedin.com/company/pimjo");
-  const [instagram, setInstagram] = useState("https://instagram.com/PimjoHQ");
+  const { currentUser, updateProfile } = useAuth();
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [bio, setBio] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [instagram, setInstagram] = useState("");
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("userProfile");
-      if (raw) {
-        const data = JSON.parse(raw);
-        setFirstName(data.firstName || firstName);
-        setLastName(data.lastName || lastName);
-        setEmail(data.email || email);
-        setPhone(data.phone || phone);
-        setBio(data.bio || bio);
-        setFacebook(data.facebook || facebook);
-        setXcom(data.xcom || xcom);
-        setLinkedin(data.linkedin || linkedin);
-        setInstagram(data.instagram || instagram);
-      }
-    } catch (e) {
-      // ignore parse errors
-    }
-  }, []);
+    if (!currentUser) return;
+
+    setFirstName(currentUser.firstName || "");
+    setLastName(currentUser.lastName || "");
+    setEmail(currentUser.email || "");
+    setPhone(currentUser.phone || "");
+    setBio(currentUser.bio || "");
+    setFacebook(currentUser.facebookUrl || "");
+    setWhatsapp(currentUser.whatsappUrl || "");
+    setLinkedin(currentUser.linkedinUrl || "");
+    setInstagram(currentUser.instagramUrl || "");
+  }, [currentUser]);
 
   const handleSave = () => {
-    const profile = {
+    if (!currentUser) return;
+
+    updateProfile({
       firstName,
       lastName,
       email,
       phone,
       bio,
-      facebook,
-      xcom,
-      linkedin,
-      instagram,
-    };
+      facebookUrl: facebook,
+      whatsappUrl: whatsapp,
+      linkedinUrl: linkedin,
+      instagramUrl: instagram,
+    });
+
     try {
-      localStorage.setItem("userProfile", JSON.stringify(profile));
-      // also set patientName used by Calendar
       localStorage.setItem("patientName", `${firstName} ${lastName}`);
-    } catch (e) {
-      console.warn("Could not save profile to localStorage", e);
+    } catch {
+      // ignore
     }
+
     closeModal();
   };
+
+  if (!currentUser) {
+    return null;
+  }
+
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-            Information personnelle
+            Informations personnelles
           </h4>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
@@ -74,16 +76,16 @@ export default function UserInfoCard() {
                 Nom
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Nyembo
+                {firstName}
               </p>
             </div>
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Prenom
+                Prénom
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Chrinovic
+                {lastName}
               </p>
             </div>
 
@@ -92,7 +94,7 @@ export default function UserInfoCard() {
                 Courriel
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                chrinovicnyembo009@gmail.com
+                {email}
               </p>
             </div>
 
@@ -101,16 +103,16 @@ export default function UserInfoCard() {
                 Téléphone
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                +243 84 862 1712
+                {phone}
               </p>
             </div>
 
-            <div>
+            <div className="col-span-1 lg:col-span-2">
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                 Bio
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Patient en bonne santé, sans antécédents médicaux significatifs. Aucune allergie connue. Pas de médicaments réguliers. Mode de vie actif et équilibré.
+                {bio}
               </p>
             </div>
           </div>
@@ -168,6 +170,11 @@ export default function UserInfoCard() {
 
                   <div>
                     <Label>Whatsapp</Label>
+                    <Input type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+                  </div>
+
+                  <div>
+                    <Label>LinkedIn</Label>
                     <Input type="text" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} />
                   </div>
 

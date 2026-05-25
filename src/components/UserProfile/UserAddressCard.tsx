@@ -4,62 +4,60 @@ import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
+import { useAuth } from "../../context/AuthContext";
 
 export default function UserAddressCard() {
   const { isOpen, openModal, closeModal } = useModal();
-  const [nationality, setNationality] = useState("Congolaise");
-  const [city, setCity] = useState("Kolwezi, Haut-Katanga");
-  const [neighborhood, setNeighborhood] = useState("Joli Site");
-  const [street, setStreet] = useState("Avenue de Kahozi");
-  const [country, setCountry] = useState("Congolaise");
-  const [cityState, setCityState] = useState("Kolwezi, Haut-Katanga");
-  const [postalCode, setPostalCode] = useState("50100");
-  const [taxId, setTaxId] = useState("RDC-123456789");
+  const { currentUser, updateProfile } = useAuth();
+
+  const [nationality, setNationality] = useState("");
+  const [city, setCity] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [street, setStreet] = useState("");
+  const [country, setCountry] = useState("");
+  const [cityState, setCityState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [taxId, setTaxId] = useState("");
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("userAddress");
-      if (raw) {
-        const data = JSON.parse(raw);
-        setNationality(data.nationality || nationality);
-        setCity(data.city || city);
-        setNeighborhood(data.neighborhood || neighborhood);
-        setStreet(data.street || street);
-        setCountry(data.country || country);
-        setCityState(data.cityState || cityState);
-        setPostalCode(data.postalCode || postalCode);
-        setTaxId(data.taxId || taxId);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, []);
+    if (!currentUser) return;
+
+    setNationality(currentUser.nationality || "");
+    setCountry(currentUser.addressCountry || "");
+    setCity(`${currentUser.addressCity || ""}${currentUser.addressProvince ? `, ${currentUser.addressProvince}` : ""}`);
+    setCityState(`${currentUser.addressCity || ""}${currentUser.addressProvince ? `, ${currentUser.addressProvince}` : ""}`);
+    setNeighborhood(currentUser.addressNeighborhood || "");
+    setStreet(currentUser.addressStreet || "");
+    setPostalCode("");
+    setTaxId("");
+  }, [currentUser]);
 
   const handleSave = () => {
-    const address = {
+    if (!currentUser) return;
+
+    updateProfile({
       nationality,
-      city,
-      neighborhood,
-      street,
-      country,
-      cityState,
-      postalCode,
-      taxId,
-    };
-    try {
-      localStorage.setItem("userAddress", JSON.stringify(address));
-    } catch (e) {
-      console.warn("Could not save address to localStorage", e);
-    }
+      addressCountry: country,
+      addressProvince: cityState.split(",")[1]?.trim() || currentUser.addressProvince,
+      addressCity: cityState.split(",")[0]?.trim() || currentUser.addressCity,
+      addressNeighborhood: neighborhood,
+      addressStreet: street,
+    });
+
     closeModal();
   };
+
+  if (!currentUser) {
+    return null;
+  }
+
   return (
     <>
       <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-              Addresse
+              Adresse
             </h4>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
@@ -77,7 +75,7 @@ export default function UserAddressCard() {
                   Ville / Province
                 </p>
                 <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {city}
+                  {cityState}
                 </p>
               </div>
 
@@ -128,17 +126,22 @@ export default function UserAddressCard() {
         <div className="relative w-full p-4 overflow-y-auto bg-white no-scrollbar rounded-3xl dark:bg-gray-900 lg:p-11">
           <div className="px-2 pr-14">
             <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Modifiez vos adresses
+              Modifiez votre adresse
             </h4>
             <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-              Mettez à jour vos adresses ici
+              Mettez à jour votre pays, ville et adresse de résidence.
             </p>
           </div>
           <form className="flex flex-col">
             <div className="px-2 overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                 <div>
-                  <Label>Nationnalité</Label>
+                  <Label>Nationalité</Label>
+                  <Input type="text" value={nationality} onChange={(e) => setNationality(e.target.value)} />
+                </div>
+
+                <div>
+                  <Label>Pays</Label>
                   <Input type="text" value={country} onChange={(e) => setCountry(e.target.value)} />
                 </div>
 
@@ -152,8 +155,8 @@ export default function UserAddressCard() {
                   <Input type="text" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} />
                 </div>
 
-                <div>
-                  <Label>Avenue</Label>
+                <div className="col-span-2">
+                  <Label>Avenue / Rue</Label>
                   <Input type="text" value={street} onChange={(e) => setStreet(e.target.value)} />
                 </div>
               </div>

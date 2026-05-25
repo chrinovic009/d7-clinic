@@ -204,11 +204,6 @@ const doctorNavItems: NavItem[] = [
     path: "/doctor/messages",
   },
   {
-    icon: <CalenderIcon />,
-    name: "Agenda & rendez-vous",
-    path: "/doctor/calendar",
-  },
-  {
     icon: <LockIcon />,
     name: "Profil médecin",
     path: "/doctor/profile",

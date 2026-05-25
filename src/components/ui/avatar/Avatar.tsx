@@ -1,6 +1,9 @@
+import { useMemo, useState } from "react";
+
 interface AvatarProps {
-  src: string; // URL of the avatar image
+  src?: string | null; // URL of the avatar image
   alt?: string; // Alt text for the avatar
+  initials?: string; // Initials fallback when no image is available
   size?: "xsmall" | "small" | "medium" | "large" | "xlarge" | "xxlarge"; // Avatar size
   status?: "online" | "offline" | "busy" | "none"; // Status indicator
 }
@@ -29,16 +32,50 @@ const statusColorClasses = {
   busy: "bg-warning-500",
 };
 
+const getInitials = (text: string) => {
+  const words = text
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase());
+  return words.join("") || "U";
+};
+
 const Avatar: React.FC<AvatarProps> = ({
   src,
   alt = "User Avatar",
+  initials,
   size = "medium",
   status = "none",
 }) => {
+  const [imageError, setImageError] = useState(false);
+  const hasImage = Boolean(src) && !imageError;
+
+  const fallbackInitials = useMemo(() => {
+    if (initials) {
+      return initials.toUpperCase();
+    }
+    return getInitials(alt || "User Avatar");
+  }, [alt, initials]);
+
   return (
-    <div className={`relative  rounded-full ${sizeClasses[size]}`}>
+    <div
+      className={`relative flex items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold uppercase text-slate-800 dark:bg-slate-700 dark:text-slate-100 ${sizeClasses[size]}`}
+    >
       {/* Avatar Image */}
-      <img src={src} alt={alt} className="object-cover rounded-full" />
+      {hasImage ? (
+        <img
+          src={src!}
+          alt={alt}
+          className="h-full w-full object-cover"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-base font-semibold">
+          {fallbackInitials}
+        </span>
+      )}
 
       {/* Status Indicator */}
       {status !== "none" && (
