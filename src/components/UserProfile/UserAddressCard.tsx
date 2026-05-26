@@ -11,13 +11,13 @@ export default function UserAddressCard() {
   const { currentUser, updateProfile } = useAuth();
 
   const [nationality, setNationality] = useState("");
-  const [city, setCity] = useState("");
+  const [, setCity] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [street, setStreet] = useState("");
   const [country, setCountry] = useState("");
   const [cityState, setCityState] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [taxId, setTaxId] = useState("");
+  const [, setPostalCode] = useState("");
+  const [, setTaxId] = useState("");
 
   useEffect(() => {
     if (!currentUser) return;
