@@ -1,69 +1,9 @@
 import { useMemo, useState } from "react";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
+import { getReceptionAppointments } from "../../api/reception";
 
-const initialRequests = [
-  {
-    id: "rv-001",
-    patientName: "Sarah Ilunga",
-    service: "Cardiologie",
-    doctorRequested: "Dr Mukendi",
-    dateRequested: "22 mai",
-    status: "En attente",
-    priority: "Normale",
-    phone: "+243812345678",
-    age: 34,
-    dossier: "D-001234",
-    lastVisits: "Consultation cardiologie il y a 3 semaines",
-    motive: "Douleur thoracique depuis 3 jours",
-    requestedOn: "2026-05-16",
-  },
-  {
-    id: "rv-002",
-    patientName: "Jean Kabila",
-    service: "Laboratoire",
-    doctorRequested: "Aucun médecin spécifique",
-    dateRequested: "19 mai",
-    status: "Confirmé",
-    priority: "Normale",
-    phone: "+243820112233",
-    age: 44,
-    dossier: "D-001235",
-    lastVisits: "Prélèvement sanguin le 10 mai",
-    motive: "Contrôle de bilan lipidique",
-    requestedOn: "2026-05-15",
-  },
-  {
-    id: "rv-003",
-    patientName: "Amina Mputu",
-    service: "Urgences",
-    doctorRequested: "Aucun médecin spécifique",
-    dateRequested: "Aujourd'hui",
-    status: "Urgent",
-    priority: "Urgent",
-    phone: "+243817654321",
-    age: 28,
-    dossier: "D-001236",
-    lastVisits: "Hospitalisation urgence il y a 1 semaine",
-    motive: "Accident, douleur abdominale",
-    requestedOn: "2026-05-17",
-  },
-  {
-    id: "rv-004",
-    patientName: "Driss Kone",
-    service: "Pédiatrie",
-    doctorRequested: "Dr Okapi",
-    dateRequested: "21 mai",
-    status: "Refusé",
-    priority: "Normale",
-    phone: "+243819876543",
-    age: 8,
-    dossier: "D-001237",
-    lastVisits: "Vaccination le 02 mai",
-    motive: "Fièvre persistante",
-    requestedOn: "2026-05-15",
-  },
-];
+const initialRequests = getReceptionAppointments();
 
 const availabilityTimeline = [
   { time: "08:00", state: "Occupé" },

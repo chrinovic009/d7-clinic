@@ -1,11 +1,50 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifying, setNotifying] = useState(true);
+  const [toast, setToast] = useState<{ visible: boolean; text?: string; convId?: string }>(() => ({ visible: false }));
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleIncoming = (ev: any) => {
+      try {
+        const { convId, message } = ev.detail || {};
+        setToast({ visible: true, text: message?.text || "Nouveau message", convId });
+        setNotifying(true);
+        // play short beep
+        try {
+          const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+          if (Ctx) {
+            const ctx = new Ctx();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = "sine";
+            o.frequency.value = 1000;
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start();
+            g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+            setTimeout(() => {
+              try {
+                o.stop();
+                ctx.close();
+              } catch {}
+            }, 600);
+          }
+        } catch {}
+
+        // auto-hide after 15 seconds
+        setTimeout(() => setToast({ visible: false }), 15000);
+      } catch (e) {}
+    };
+
+    window.addEventListener("d7:incomingMessage", handleIncoming as EventListener);
+    return () => window.removeEventListener("d7:incomingMessage", handleIncoming as EventListener);
+  }, []);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -18,6 +57,18 @@ export default function NotificationDropdown() {
   const handleClick = () => {
     toggleDropdown();
     setNotifying(false);
+  };
+  const openConversation = (convId?: string) => {
+    if (!convId) {
+      toggleDropdown();
+      setNotifying(false);
+      return;
+    }
+    // mark as seen
+    try {
+      localStorage.removeItem("d7-has-unread");
+    } catch {}
+    navigate("/reception/messages", { state: { convId } });
   };
   return (
     <div className="relative">
@@ -47,6 +98,26 @@ export default function NotificationDropdown() {
           />
         </svg>
       </button>
+      {toast.visible && (
+        <div className="fixed right-6 bottom-6 z-50 w-[320px] rounded-2xl bg-primary-500 p-4 shadow-2xl shadow-primary-500/20 ring-1 ring-primary-600/20">
+          <div className="flex items-start gap-3 text-white">
+            <div className="flex-1">
+              <div className="text-sm font-semibold">Nouveau message</div>
+              <div className="mt-1 text-xs leading-5 text-white/85">
+                {toast.text?.length && toast.text.length > 150 ? `${toast.text.slice(0, 150)}…` : toast.text}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => openConversation(toast.convId)}
+                className="rounded-md bg-white/10 px-3 py-1 text-white text-xs hover:bg-white/20"
+              >
+                Voir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
@@ -54,7 +125,7 @@ export default function NotificationDropdown() {
       >
         <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
           <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            Notification
+            Messages
           </h5>
           <button
             onClick={toggleDropdown}

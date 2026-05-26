@@ -3,49 +3,17 @@ import { Phone, Video } from "lucide-react";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import { PlusIcon, PaperPlaneIcon, ChevronLeftIcon } from "../../icons";
+import { getConversations } from "../../api/reception";
+import { useLocation } from "react-router";
 
-const chatContacts = [
-  {
-    name: "Lindsey Curtis",
-    role: "Designer",
-    status: "online",
-    lastMessage: "I want to make an appointment tomorrow...",
-    time: "2 hours",
-  },
-  {
-    name: "Zain Geidt",
-    role: "Content Writer",
-    status: "online",
-    lastMessage: "Please send me the latest report.",
-    time: "45 mins",
-  },
-  {
-    name: "Carla George",
-    role: "Front-end Developer",
-    status: "online",
-    lastMessage: "Je vérifie votre dossier médical.",
-    time: "2 days",
-  },
-  {
-    name: "Abram Schleifer",
-    role: "Digital Marketer",
-    status: "online",
-    lastMessage: "Nouveau plan de suivi disponible.",
-    time: "1 hour",
-  },
-  {
-    name: "Lincoln Donin",
-    role: "Project Manager",
-    status: "online",
-    lastMessage: "Rendez-vous confirmé.",
-    time: "3 days",
-  },
-];
+
 
 const Messages = () => {
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedContact, setSelectedContact] = useState(chatContacts[0]);
+  const location = useLocation();
+  const [conversations, setConversations] = useState<any[]>(() => getConversations());
+  const [selectedContact, setSelectedContact] = useState<any>(conversations?.[0] ?? null);
   const [showConversation, setShowConversation] = useState(false);
   const [isDesktop, setIsDesktop] = useState<boolean>(typeof window !== "undefined" ? window.innerWidth >= 1280 : true);
   const [messages, setMessages] = useState<any[]>([
@@ -69,6 +37,36 @@ const Messages = () => {
       else mq.removeListener(handler as any);
     };
   }, []);
+
+  useEffect(() => {
+    // handle navigation from notifications: location.state?.convId
+    try {
+      const convId = (location as any)?.state?.convId;
+      if (convId) {
+        const convs = getConversations();
+        setConversations(convs);
+        const found = convs.find((c: any) => c.id === convId);
+        if (found) {
+          setSelectedContact(found);
+          setMessages(found.messages.map((m: any) => ({ id: m.id, from: m.from === 'Patient' ? 'Patient' : 'LC', type: 'text', text: m.text, time: m.time })));
+        }
+      }
+    } catch {}
+  }, [location]);
+
+  useEffect(() => {
+    const handler = (ev: any) => {
+      const { convId, message } = ev.detail || {};
+      // reload conversations
+      const convs = getConversations();
+      setConversations(convs);
+      if (selectedContact && selectedContact.id === convId) {
+        setMessages((prev) => [...prev, { id: message.id, from: 'Patient', type: 'text', text: message.text, time: message.time }]);
+      }
+    };
+    window.addEventListener('d7:incomingMessage', handler as EventListener);
+    return () => window.removeEventListener('d7:incomingMessage', handler as EventListener);
+  }, [selectedContact]);
 
   return (
     <div>
@@ -106,40 +104,37 @@ const Messages = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {chatContacts
-                    .filter((c) =>
-                      (c.name + " " + c.role + " " + c.lastMessage)
-                        .toLowerCase()
-                        .includes(searchTerm.toLowerCase())
-                    )
+                  {conversations
+                    .filter((c) => (c.patientName + " " + (c.messages?.[c.messages.length - 1]?.text || "")).toLowerCase().includes(searchTerm.toLowerCase()))
                     .map((contact) => (
                       <button
-                        key={contact.name}
+                        key={contact.id}
                         onClick={() => {
                           setSelectedContact(contact);
+                          setMessages(contact.messages.map((m: any) => ({ id: m.id, from: m.from === 'Patient' ? 'Patient' : 'LC', type: 'text', text: m.text, time: m.time })));
                           if (!isDesktop) setShowConversation(true);
                         }}
                         className={`flex w-full items-center gap-3 rounded-3xl border p-3 text-left transition hover:border-blue-200 hover:bg-blue-50 dark:bg-slate-950 dark:hover:border-blue-500/40 dark:hover:bg-slate-900 ${
-                          selectedContact?.name === contact.name ? "border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-slate-900" : "border-transparent bg-white"
+                          selectedContact?.id === contact.id ? "border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-slate-900" : "border-transparent bg-white"
                         }`}
                       >
                         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 text-sm font-semibold text-white">
-                          {contact.name
+                          {contact.patientName
                             .split(" ")
-                            .map((part) => part[0])
+                            .map((part: string) => part[0])
                             .join("")}
                         </span>
                         <div className="flex-1">
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {contact.name}
+                                {contact.patientName}
                               </h4>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">{contact.role}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Patient</p>
                             </div>
-                            <span className="text-[11px] text-gray-400">{contact.time}</span>
+                            <span className="text-[11px] text-gray-400">{new Date(contact.updatedAt).toLocaleTimeString()}</span>
                           </div>
-                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{contact.lastMessage}</p>
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{contact.messages?.[contact.messages.length - 1]?.text}</p>
                         </div>
                       </button>
                     ))}

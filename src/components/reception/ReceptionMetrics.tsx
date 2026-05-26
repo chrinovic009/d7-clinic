@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -5,8 +6,18 @@ import {
   GroupIcon,
 } from "../../icons";
 import Badge from "../ui/badge/Badge";
+import { getReceptionAppointmentMetrics } from "../../api/reception";
 
-export default function EcommerceMetrics() {
+export default function ReceptionMetrics() {
+  const [waitingCount, setWaitingCount] = useState(0);
+  const [todayAppointments, setTodayAppointments] = useState(0);
+
+  useEffect(() => {
+    const metrics = getReceptionAppointmentMetrics();
+    setWaitingCount(metrics.waitingCount);
+    setTodayAppointments(metrics.todayAppointments);
+  }, []);
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
       {/* <!-- Metric Item Start --> */}
@@ -21,7 +32,7 @@ export default function EcommerceMetrics() {
               Patients en attente
             </span>
             <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-              18 Patients
+              {waitingCount} Patients
             </h4>
           </div>
           <Badge color="warning">
@@ -43,7 +54,7 @@ export default function EcommerceMetrics() {
               Rendez-vous aujourd’hui
             </span>
             <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-              8 Rendez-vous
+              {todayAppointments} Rendez-vous
             </h4>
           </div>
 

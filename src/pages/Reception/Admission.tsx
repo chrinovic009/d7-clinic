@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { findPatientByPhone, saveAdmission } from "../../api/reception";
+import { findPatientByEmail, findPatientByName, findPatientByPhone, saveAdmission, savePatientRecord, addPatientRelation, createConversationForPatient, addMessageToConversation } from "../../api/reception";
 
 const services = [
   "Médecine générale",
@@ -23,50 +23,6 @@ const doctorsByService: Record<string, string[]> = {
   Neurologie: ["Dr Aubin"],
 };
 
-const knownPatients = [
-  {
-    name: "Elsa Nyembo",
-    category: "S",
-    company: "Kamoa",
-    phone: "0812345678",
-    email: "elsa@kamoa.com",
-    address: "Boulevard Kamoa, Kinshasa",
-    profession: "Directrice",
-    nationality: "RD Congo",
-    gender: "F",
-    dob: "1985-08-12",
-    dossierNumber: "D-000001",
-    admissionType: "Consultation",
-    arrival: new Date().toISOString().slice(0, 16),
-    service: "Cardiologie",
-    doctor: "Dr Mukendi",
-    priority: "Normal",
-    insurance: { company: "Kamoa", policy: "KM-3344", coverageType: "Entreprise", coveragePct: 80, photo: null, pdf: null },
-    contacts: [{ name: "Jean Nyembo", relation: "Conjoint", phone: "0811111111", address: "Quartier Kamoa" }],
-    allergies: ["Hypertension"],
-  },
-  {
-    name: "Chrinovic Nyembo",
-    category: "P",
-    phone: "0818765432",
-    email: "chrinovic@example.com",
-    address: "Quartier Lakua, Kinshasa",
-    profession: "Étudiant",
-    nationality: "RD Congo",
-    gender: "M",
-    dob: "2000-05-20",
-    dossierNumber: "D-000002",
-    admissionType: "Urgence",
-    arrival: new Date().toISOString().slice(0, 16),
-    service: "Urgences",
-    doctor: "Dr Rapid",
-    priority: "Urgence",
-    insurance: { company: "", policy: "", coverageType: "", coveragePct: 0, photo: null, pdf: null },
-    contacts: [{ name: "Claire Nyembo", relation: "Mère", phone: "0812223333", address: "Quartier Lakua" }],
-    allergies: ["Asthme"],
-  },
-];
-
 type ModalStep =
   | null
   | "payment-question"
@@ -74,7 +30,24 @@ type ModalStep =
   | "awaiting-payment"
   | "send-confirmation"
   | "waiting-list"
+  | "confirm-linkage"
   | "success";
+
+const relationOptions = [
+  "frère",
+  "soeur",
+  "cousin",
+  "cousine",
+  "père",
+  "mère",
+  "tante",
+  "oncle",
+  "grand-mère",
+  "grand-père",
+  "époux",
+  "épouse",
+  "collègue",
+];
 
 const Admission: React.FC = () => {
   const [form, setForm] = useState<any>({
@@ -100,6 +73,10 @@ const Admission: React.FC = () => {
     documents: [] as any[],
   });
   const [existingPatient, setExistingPatient] = useState<any>(null);
+  const [phoneMatchPatient, setPhoneMatchPatient] = useState<any>(null);
+  const [emailMatchPatient, setEmailMatchPatient] = useState<any>(null);
+  const [relationshipPatient, setRelationshipPatient] = useState<any>(null);
+  const [relationship, setRelationship] = useState("");
   const [modalStep, setModalStep] = useState<ModalStep>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -112,24 +89,31 @@ const Admission: React.FC = () => {
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
-      const normalizedName = form.name.trim().toLowerCase();
-      if (normalizedName.length >= 4) {
-        const foundByName = knownPatients.find((patient) => patient.name.toLowerCase() === normalizedName);
-        if (foundByName) {
-          setExistingPatient(foundByName);
-          return;
-        }
-      }
-
-      if (form.phone && form.phone.length >= 6) {
-        const found = await findPatientByPhone(form.phone);
-        setExistingPatient(found || null);
+      const nameSearch = form.name.trim();
+      if (nameSearch.length >= 4) {
+        const foundByName = await findPatientByName(form.name);
+        setExistingPatient(foundByName || null);
       } else {
         setExistingPatient(null);
       }
+
+      if (form.phone && form.phone.trim().length >= 6) {
+        const foundPhone = await findPatientByPhone(form.phone);
+        setPhoneMatchPatient(foundPhone || null);
+      } else {
+        setPhoneMatchPatient(null);
+      }
+
+      if (form.email && form.email.trim().length >= 5) {
+        const foundEmail = await findPatientByEmail(form.email);
+        setEmailMatchPatient(foundEmail || null);
+      } else {
+        setEmailMatchPatient(null);
+      }
     }, 400);
+
     return () => clearTimeout(timeout);
-  }, [form.name, form.phone]);
+  }, [form.name, form.phone, form.email]);
 
   useEffect(() => {
     if (!form.doctor) {
@@ -152,6 +136,10 @@ const Admission: React.FC = () => {
 
   const resetForm = () => {
     setExistingPatient(null);
+    setPhoneMatchPatient(null);
+    setEmailMatchPatient(null);
+    setRelationshipPatient(null);
+    setRelationship("");
     setModalStep(null);
     setPaymentAmount("");
     setPaymentMethod("");
@@ -179,15 +167,33 @@ const Admission: React.FC = () => {
     });
   };
 
+  const contactMatchPatient = phoneMatchPatient || emailMatchPatient;
+
+  const continueAdmissionAfterLinkCheck = () => {
+    if (form.category === "P") {
+      setModalStep("payment-question");
+      return;
+    }
+    registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
+    setModalStep("success");
+  };
+
   const handleSaveClick = () => {
     if (existingPatient) {
-      setModalStep("success");
+      window.alert(`Ce patient existe déjà : ${existingPatient.name}. Vérifiez son dossier avant de créer une nouvelle admission.`);
+      return;
+    }
+
+    if (contactMatchPatient) {
+      setRelationshipPatient(contactMatchPatient);
+      setModalStep("confirm-linkage");
       return;
     }
 
     if (form.category === "P") {
       setModalStep("payment-question");
     } else {
+      registerPatientAndNotify();
       setModalStep("success");
     }
   };
@@ -197,12 +203,48 @@ const Admission: React.FC = () => {
   };
 
   const handleAwaitingDecision = (sendToInfirmier: boolean) => {
-    setModalStep(sendToInfirmier ? "send-confirmation" : "waiting-list");
+    if (sendToInfirmier) {
+      registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
+      setModalStep("send-confirmation");
+    } else {
+      setModalStep("waiting-list");
+    }
   };
 
   const handleConfirmPayment = async () => {
     await saveAdmission(form);
+    await registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
     setModalStep("success");
+  };
+
+  const registerPatientAndNotify = async (relation?: string) => {
+    try {
+      const patient = savePatientRecord({
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+        dob: form.dob,
+        gender: form.gender,
+        relations: relation && relationshipPatient ? [{ patientId: relationshipPatient.id, name: relationshipPatient.name, relation }] : [],
+      });
+
+      if (relation && relationshipPatient) {
+        addPatientRelation(relationshipPatient.id, {
+          patientId: patient.id,
+          name: patient.name,
+          relation,
+        });
+      }
+
+      const conv = createConversationForPatient(patient);
+      const text = `Bonjour, je suis ${patient.name}. Matricule: ${patient.matricule}. Mot de passe: ${patient.password}.`;
+      addMessageToConversation(conv.id, { from: "Patient", text });
+      try {
+        localStorage.setItem("d7-last-registered-patient", JSON.stringify({ patient, convId: conv.id }));
+      } catch {}
+    } catch (e) {
+      // ignore errors in simulation
+    }
   };
 
   const renderPatientDetails = () => (
@@ -238,6 +280,11 @@ const Admission: React.FC = () => {
             <>
               <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow dark:shadow-lg border border-gray-200 dark:border-slate-700">
                 <h3 className="font-medium mb-3 text-gray-900 dark:text-white text-sm sm:text-base">1. Informations personnelles</h3>
+                {contactMatchPatient && !existingPatient ? (
+                  <div className="mb-3 rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/40 p-3 text-sm text-red-800 dark:text-red-100">
+                    Ce contact correspond déjà à un patient existant : <strong>{contactMatchPatient.name}</strong>. Vous pouvez confirmer la relation avant de continuer.
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="S">Abonné</option>
@@ -251,8 +298,18 @@ const Admission: React.FC = () => {
                   </select>
                   <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <div className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white text-sm">Âge: {age}</div>
-                  <input placeholder="Téléphone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <div className="space-y-1">
+                    <input placeholder="Téléphone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {phoneMatchPatient && !existingPatient ? (
+                      <p className="text-xs text-red-600 dark:text-red-400">Ce téléphone correspond déjà à : {phoneMatchPatient.name}</p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {emailMatchPatient && !existingPatient ? (
+                      <p className="text-xs text-red-600 dark:text-red-400">Cet email correspond déjà à : {emailMatchPatient.name}</p>
+                    ) : null}
+                  </div>
                   <input placeholder="Adresse" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="col-span-1 sm:col-span-2 lg:col-span-2 rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <input placeholder="Profession" value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <input placeholder="Nationalité" value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -342,7 +399,13 @@ const Admission: React.FC = () => {
             </div>
 
             <div className="mt-4 space-y-2">
-              <button onClick={handleSaveClick} className="w-full rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 font-medium hover:bg-slate-800 dark:hover:bg-slate-200 transition text-sm">Enregistrer & Envoyez</button>
+              <button
+                onClick={handleSaveClick}
+                disabled={!!existingPatient}
+                className={`w-full rounded px-3 py-2 font-medium text-sm transition ${existingPatient ? "bg-gray-300 text-gray-600 cursor-not-allowed" : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"}`}
+              >
+                Enregistrer & Envoyez
+              </button>
               <button onClick={() => window.print()} className="w-full rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-3 py-2 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition text-sm">Imprimer fiche</button>
               <button onClick={resetForm} className="w-full rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-3 py-2 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition text-sm">Annuler</button>
             </div>
@@ -377,6 +440,31 @@ const Admission: React.FC = () => {
                 <div className="mt-4 flex gap-3">
                   <button onClick={() => handlePaymentChoice(true)} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Oui</button>
                   <button onClick={() => handlePaymentChoice(false)} className="rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm">Non</button>
+                </div>
+              </>
+            )}
+            {modalStep === "confirm-linkage" && relationshipPatient && (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Patient déjà connu</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Le numéro de téléphone ou l'email saisi correspond déjà à un patient existant.</p>
+                <div className="mt-4 rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/40 p-4">
+                  <div className="text-sm text-gray-800 dark:text-gray-100"><span className="font-medium">Patient existant :</span> {relationshipPatient.name}</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300"><span className="font-medium">Téléphone:</span> {relationshipPatient.phone}</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300"><span className="font-medium">Email:</span> {relationshipPatient.email}</div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Relation avec ce patient</label>
+                    <select value={relationship} onChange={(e) => setRelationship(e.target.value)} className="mt-2 w-full rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Sélectionner une relation</option>
+                      {relationOptions.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Si le patient enregistré vient avec un membre de sa famille ou un contact référencé, enregistrez la relation.</div>
+                </div>
+                <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                  <button disabled={!relationship} onClick={() => { continueAdmissionAfterLinkCheck(); }} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm disabled:opacity-50">Confirmer et continuer</button>
+                  <button onClick={() => { setRelationship(""); setModalStep(null); }} className="rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm">Annuler</button>
                 </div>
               </>
             )}

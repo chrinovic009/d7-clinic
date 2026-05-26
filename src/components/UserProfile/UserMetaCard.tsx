@@ -7,6 +7,21 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import { useAuth } from "../../context/AuthContext";
 
+function getRoleLabel(role: string, gender?: string, specialty?: string) {
+  switch (role) {
+    case "RECEPTIONIST":
+      return "Réceptionniste";
+    case "NURSE":
+      if (gender === "F") return "Infirmière";
+      if (gender === "M") return "Infirmier";
+      return "Infirmier/ère";
+    case "PHYSICIAN":
+      return specialty ? `Médecin · ${specialty}` : "Médecin";
+    default:
+      return role;
+  }
+}
+
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
   const { currentUser, updateProfile } = useAuth();
@@ -80,7 +95,7 @@ export default function UserMetaCard() {
               </h4>
               <div className="flex flex-col items-center gap-1 text-center xl:flex-row xl:gap-3 xl:text-left">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {currentUser.role}
+                  {getRoleLabel(currentUser.role, currentUser.gender, currentUser.specialty)}
                 </p>
                 <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">

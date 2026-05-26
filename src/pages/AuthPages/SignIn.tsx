@@ -6,8 +6,8 @@ export default function SignIn() {
   return (
     <>
       <PageMeta
-        title="React.js SignIn Dashboard | D7 Clinique - Next.js Admin Dashboard Template"
-        description="This is React.js SignIn Tables Dashboard page for D7 Clinique - React.js Tailwind CSS Admin Dashboard Template"
+        title="Connexion | D7 Clinique"
+        description="Page de connexion pour D7 Clinique, votre plateforme de gestion de clinique en ligne."
       />
       <AuthLayout>
         <SignInForm />

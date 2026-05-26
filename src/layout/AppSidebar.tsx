@@ -210,6 +210,34 @@ const doctorNavItems: NavItem[] = [
   },
 ];
 
+const cashierNavItems: NavItem[] = [
+  {
+    icon: <DollarLineIcon />,
+    name: "Dashboard caisse",
+    path: "/caissier",
+  },
+  {
+    icon: <DollarLineIcon />,
+    name: "Facturation",
+    path: "/caissier/facturation",
+  },
+  {
+    icon: <ChatIcon />,
+    name: "Messages / Autorisations",
+    path: "/caissier/messages",
+  },
+  {
+    icon: <FolderIcon />,
+    name: "Historique paiements",
+    path: "/caissier/historique",
+  },
+  {
+    icon: <LockIcon />,
+    name: "Profil caissier",
+    path: "/caissier/profile",
+  },
+];
+
 const othersItems: NavItem[] = [];
 
 const AppSidebar: React.FC = () => {
@@ -223,12 +251,15 @@ const AppSidebar: React.FC = () => {
   const isReceptionSection = location.pathname.startsWith("/reception");
   const isNurseSection = location.pathname.startsWith("/nurse");
   const isDoctorSection = location.pathname.startsWith("/doctor");
+  const isCashierSection = location.pathname.startsWith("/caissier");
   const activeNavItems = isDoctorSection
     ? doctorNavItems
     : isNurseSection
     ? nurseNavItems
     : isReceptionSection
     ? receptionNavItems
+    : isCashierSection
+    ? cashierNavItems
     : navItems;
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
     {}

@@ -24,9 +24,9 @@ const usersData = [
   {
     email: "failakeren04@gmail.com",
     username: "d7fk01",
-    displayName: "Keren FAILA",
+    displayName: "Keren Faila",
     firstName: "Keren",
-    lastName: "FAILA",
+    lastName: "Faila",
     passwordHash: "d7-12026",
     primaryRole: RoleSlug.RECEPTIONIST,
     phone: "+243991666646",

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { findPatientByCredentials, PatientRecord } from "../api/reception";
 
 export type RoleSlug =
   | "SUPER_ADMIN"
@@ -10,7 +11,9 @@ export type RoleSlug =
   | "RADIOLOGIST"
   | "SURGEON"
   | "ANESTHESIOLOGIST"
-  | "PHARMACIST";
+  | "PHARMACIST"
+  | "PATIENT"
+  | "CASHIER";
 
 export interface AuthUser {
   id: string;
@@ -20,6 +23,7 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   role: RoleSlug;
+  gender?: "M" | "F";
   specialty?: string;
   phone: string;
   nationality: string;
@@ -80,10 +84,11 @@ const staticUsers: AuthCredentials[] = [
     id: "user-reception-001",
     email: "failakeren04@gmail.com",
     username: "d7fk01",
-    displayName: "Keren FAILA",
+    displayName: "Keren Faila",
     firstName: "Keren",
-    lastName: "FAILA",
+    lastName: "Faila",
     role: "RECEPTIONIST",
+    gender: "F",
     password: "d7-12026",
     specialty: undefined,
     phone: "+243991666646",
@@ -99,15 +104,64 @@ const staticUsers: AuthCredentials[] = [
     bio: "Réceptionniste expérimentée qui veille à l’accueil de chaque patient avec attention et professionnalisme.",
     profilePhotoUrl: undefined,
   },
+    {
+      id: "user-cashier-001",
+      email: "patriciamwambi@clinique.local",
+      username: "d7pm01",
+      displayName: "Patricia Mwambi",
+      firstName: "Patricia",
+      lastName: "Mwambi",
+      role: "CASHIER",
+      gender: "F",
+      password: "d7-cash-01",
+      specialty: undefined,
+      phone: "+243990000001",
+      nationality: "Congolaise",
+      addressCountry: "République Démocratique du Congo",
+      addressProvince: "Haut-Katanga",
+      addressCity: "Lubumbashi",
+      addressNeighborhood: "Centre",
+      addressStreet: "Avenue de la Paix",
+      whatsappUrl: "https://wa.me/243990000001",
+      facebookUrl: "",
+      instagramUrl: "",
+      bio: "Caissière principale responsable des validations et encaissements.",
+      profilePhotoUrl: undefined,
+    },
   {
     id: "user-nurse-001",
     email: "matendagedeon@gmail.com",
     username: "d7mg02",
-    displayName: "Gédéon MATENDA",
+    displayName: "Gédéon Matenda",
     firstName: "Gédéon",
-    lastName: "MATENDA",
+    lastName: "Matenda",
     role: "NURSE",
+    gender: "M",
     password: "d7-22026",
+    specialty: undefined,
+    phone: "+243971462456",
+    nationality: "Congolaise",
+    addressCountry: "République Démocratique du Congo",
+    addressProvince: "Lualaba",
+    addressCity: "Kolwezi",
+    addressNeighborhood: "Joli Site",
+    addressStreet: "Avenue Kazembe",
+    whatsappUrl: "https://wa.me/243971462456",
+    facebookUrl: "https://www.facebook.com/bro_ged",
+    instagramUrl: "https://www.instagram.com/bro_ged",
+    bio: "Infirmier engagé, spécialiste du suivi des constantes vitales et du soutien des patients en hospitalisation.",
+    profilePhotoUrl: undefined,
+  },
+  {
+    id: "user-nurse-002",
+    email: "joelkayemb@gmail.com",
+    username: "d7jk09",
+    displayName: "Joel Kayemb",
+    firstName: "Joel",
+    lastName: "Kayemb",
+    role: "NURSE",
+    gender: "M",
+    password: "d7-92026",
     specialty: undefined,
     phone: "+243971462456",
     nationality: "Congolaise",
@@ -130,6 +184,7 @@ const staticUsers: AuthCredentials[] = [
     firstName: "Nadège",
     lastName: "Mwehu",
     role: "PHYSICIAN",
+    gender: "F",
     password: "d7-32026",
     specialty: "Généraliste",
     phone: "+243994652587",
@@ -170,7 +225,7 @@ const staticUsers: AuthCredentials[] = [
   },
   {
     id: "user-doctor-003",
-    email: "chantal.mumbashi@gmail.com",
+    email: "chantalmumbashi@gmail.com",
     username: "d7cm05",
     displayName: "Chantal Mumbashi",
     firstName: "Chantal",
@@ -259,7 +314,31 @@ const staticUsers: AuthCredentials[] = [
     instagramUrl: "https://www.instagram.com/luc.mwamba",
     bio: "Radiologue spécialisé en imagerie diagnostique, garantissant un diagnostic précis et des rapports radiologiques clairs.",
     profilePhotoUrl: undefined,
-  }
+  },
+  {
+    id: "user-nurse-001",
+    email: "omboelsa@gmail.com",
+    username: "d7oe010",
+    displayName: "Elsa Ombo",
+    firstName: "Elsa",
+    lastName: "Ombo",
+    role: "NURSE",
+    gender: "F",
+    password: "d7-102026",
+    specialty: undefined,
+    phone: "+243971462456",
+    nationality: "Congolaise",
+    addressCountry: "République Démocratique du Congo",
+    addressProvince: "Lualaba",
+    addressCity: "Kolwezi",
+    addressNeighborhood: "Joli Site",
+    addressStreet: "Avenue Kazembe",
+    whatsappUrl: "https://wa.me/243971462456",
+    facebookUrl: "https://www.facebook.com/bro_ged",
+    instagramUrl: "https://www.instagram.com/bro_ged",
+    bio: "Infirmier engagé, spécialiste du suivi des constantes vitales et du soutien des patients en hospitalisation.",
+    profilePhotoUrl: undefined,
+  },
 ];
 
 function mapToUser(user: AuthCredentials): AuthUser {
@@ -276,6 +355,33 @@ function findUser(identifier: string, password: string) {
   );
 }
 
+function mapPatientToAuthUser(patient: PatientRecord): AuthUser {
+  const names = patient.name.trim().split(/\s+/);
+  const firstName = names[0] || "Patient";
+  const lastName = names.length > 1 ? names[names.length - 1] : firstName;
+  return {
+    id: patient.id,
+    username: patient.matricule,
+    email: patient.email || "",
+    displayName: patient.name,
+    firstName,
+    lastName,
+    role: "PATIENT",
+    gender: patient.gender as "M" | "F" | undefined,
+    phone: patient.phone || "",
+    nationality: "",
+    addressCountry: "",
+    addressProvince: "",
+    addressCity: "",
+    addressNeighborhood: "",
+    addressStreet: "",
+    whatsappUrl: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    bio: "Patient connecté via la réception.",
+  };
+}
+
 export function getRedirectPath(role: RoleSlug) {
   switch (role) {
     case "RECEPTIONIST":
@@ -284,6 +390,10 @@ export function getRedirectPath(role: RoleSlug) {
       return "/nurse";
     case "PHYSICIAN":
       return "/doctor";
+    case "CASHIER":
+      return "/caissier";
+    case "PATIENT":
+      return "/";
     default:
       return "/";
   }
@@ -308,17 +418,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (identifier: string, password: string) => {
     const found = findUser(identifier, password);
-    if (!found) {
+    if (found) {
+      const baseUser = mapToUser(found);
+      const overrides = loadProfileOverrides(baseUser.id);
+      const authenticated = overrides ? { ...baseUser, ...overrides } : baseUser;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(authenticated));
+      setCurrentUser(authenticated);
+      return authenticated;
+    }
+
+    const patient = findPatientByCredentials(identifier, password);
+    if (!patient) {
       return null;
     }
 
-    const baseUser = mapToUser(found);
-    const overrides = loadProfileOverrides(baseUser.id);
-    const authenticated = overrides ? { ...baseUser, ...overrides } : baseUser;
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authenticated));
-    setCurrentUser(authenticated);
-    return authenticated;
+    const authPatient = mapPatientToAuthUser(patient);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(authPatient));
+    setCurrentUser(authPatient);
+    return authPatient;
   };
 
   const logout = () => {
