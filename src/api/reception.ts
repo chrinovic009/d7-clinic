@@ -142,6 +142,10 @@ const getStoredPatients = (): PatientRecord[] => {
   }
 };
 
+export const getAllPatients = (): PatientRecord[] => {
+  return getStoredPatients();
+};
+
 export const findPatientByName = async (name: string) => {
   const normalizedName = normalizePatientName(name);
   if (!normalizedName) return null;
@@ -216,10 +220,63 @@ export type PatientRecord = {
   gender?: string;
   createdAt: string;
   relations?: PatientRelation[];
+  admissionType?: string;
+  arrival?: string;
+  receptionist?: string;
+  service?: string;
+  doctor?: string;
+  priority?: string;
+  insurance?: { company?: string; policy?: string; coverageType?: string; coveragePct?: number; photo?: any; pdf?: any };
+  contacts?: Array<{ name: string; relation: string; phone: string; address: string }>;
+  allergies?: string[];
+  status?: "Enregistré" | "Fiche en attente" | "Fiche validée" | "Fiche annulé" | "En suivi";
+  amountDue?: number;
+  paymentRequestId?: string;
+  paymentStatus?: "pending" | "paid" | "cancelled" | "deferred";
+  paymentMethod?: string;
+  temperature?: string;
+  bloodPressure?: string;
+  spo2?: string;
+  heartRate?: string;
+  nextAction?: string;
+  lastUpdate?: string;
+  avatar?: string;
 };
 
 const PATIENTS_KEY = "d7-clinic-patients";
 const CONVERSATIONS_KEY = "d7-clinic-conversations";
+
+export const updatePatientRecord = (payload: Partial<PatientRecord> & { id: string }): PatientRecord | null => {
+  try {
+    const raw = localStorage.getItem(PATIENTS_KEY);
+    const store: PatientRecord[] = raw ? JSON.parse(raw) : [];
+    const idx = store.findIndex((patient) => patient.id === payload.id);
+    if (idx < 0) return null;
+    const updated: PatientRecord = {
+      ...store[idx],
+      ...payload,
+      relations: payload.relations ?? store[idx].relations,
+      insurance: payload.insurance ?? store[idx].insurance,
+      contacts: payload.contacts ?? store[idx].contacts,
+      allergies: payload.allergies ?? store[idx].allergies,
+    };
+    store[idx] = updated;
+    localStorage.setItem(PATIENTS_KEY, JSON.stringify(store));
+    return updated;
+  } catch {
+    return null;
+  }
+};
+
+export const getPatientById = (id: string): PatientRecord | null => {
+  try {
+    const raw = localStorage.getItem(PATIENTS_KEY);
+    const store: PatientRecord[] = raw ? JSON.parse(raw) : [];
+    return store.find((patient) => patient.id === id) || null;
+  } catch {
+    return null;
+  }
+};
 
 export const savePatientRecord = (payload: Partial<PatientRecord>): PatientRecord => {
   try {
@@ -228,10 +285,21 @@ export const savePatientRecord = (payload: Partial<PatientRecord>): PatientRecor
     const normalizedName = normalizePatientName(payload.name || "");
     const existing = store.find((patient) => normalizePatientName(patient.name) === normalizedName);
     if (existing) {
-      return existing;
+      const merged: PatientRecord = {
+        ...existing,
+        ...payload,
+        relations: payload.relations ?? existing.relations,
+        insurance: payload.insurance ?? existing.insurance,
+        contacts: payload.contacts ?? existing.contacts,
+        allergies: payload.allergies ?? existing.allergies,
+      };
+      const idx = store.findIndex((item) => item.id === existing.id);
+      store[idx] = merged;
+      localStorage.setItem(PATIENTS_KEY, JSON.stringify(store));
+      return merged;
     }
 
-    const id = `patient-${Date.now()}`;
+    const id = payload.id || `patient-${Date.now()}`;
     const names = (payload.name || "Patient").trim().split(/\s+/);
     const firstName = names[0] || "P";
     const lastName = names.length > 1 ? names[names.length - 1] : firstName;
@@ -248,15 +316,36 @@ export const savePatientRecord = (payload: Partial<PatientRecord>): PatientRecor
       email: payload.email,
       dob: payload.dob,
       gender: payload.gender,
-      createdAt: new Date().toISOString(),
+      createdAt: payload.createdAt || new Date().toISOString(),
       relations: payload.relations || [],
+      admissionType: payload.admissionType,
+      arrival: payload.arrival,
+      receptionist: payload.receptionist,
+      service: payload.service,
+      doctor: payload.doctor,
+      priority: payload.priority,
+      insurance: payload.insurance,
+      contacts: payload.contacts || [],
+      allergies: payload.allergies || [],
+      status: payload.status || "Enregistré",
+      amountDue: payload.amountDue,
+      paymentRequestId: payload.paymentRequestId,
+      paymentStatus: payload.paymentStatus,
+      paymentMethod: payload.paymentMethod,
+      temperature: payload.temperature,
+      bloodPressure: payload.bloodPressure,
+      spo2: payload.spo2,
+      heartRate: payload.heartRate,
+      nextAction: payload.nextAction,
+      lastUpdate: payload.lastUpdate,
+      avatar: payload.avatar,
     };
     store.unshift(rec);
     localStorage.setItem(PATIENTS_KEY, JSON.stringify(store));
     return rec;
   } catch (e) {
     // fallback
-    const id = `patient-${Date.now()}`;
+    const id = payload.id || `patient-${Date.now()}`;
     const names = (payload.name || "Patient").trim().split(/\s+/);
     const firstName = names[0] || "P";
     const lastName = names.length > 1 ? names[names.length - 1] : firstName;
@@ -273,6 +362,27 @@ export const savePatientRecord = (payload: Partial<PatientRecord>): PatientRecor
       gender: payload.gender,
       relations: payload.relations || [],
       createdAt: new Date().toISOString(),
+      admissionType: payload.admissionType,
+      arrival: payload.arrival,
+      receptionist: payload.receptionist,
+      service: payload.service,
+      doctor: payload.doctor,
+      priority: payload.priority,
+      insurance: payload.insurance,
+      contacts: payload.contacts || [],
+      allergies: payload.allergies || [],
+      status: payload.status || "Enregistré",
+      amountDue: payload.amountDue,
+      paymentRequestId: payload.paymentRequestId,
+      paymentStatus: payload.paymentStatus,
+      paymentMethod: payload.paymentMethod,
+      temperature: payload.temperature,
+      bloodPressure: payload.bloodPressure,
+      spo2: payload.spo2,
+      heartRate: payload.heartRate,
+      nextAction: payload.nextAction,
+      lastUpdate: payload.lastUpdate,
+      avatar: payload.avatar,
     };
   }
 };

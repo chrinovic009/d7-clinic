@@ -1,114 +1,27 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
+import { getAllPatients, PatientRecord, updatePatientRecord } from "../../api/reception";
 
-const patientData = [
-  {
-    id: "P-001",
-    name: "Mme Sophie Kamanzi",
-    age: 46,
-    sex: "Femme",
-    room: "422B",
-    bed: "Lit 2",
-    status: "Critique",
-    service: "Cardiologie",
-    temperature: "38.2°C",
-    bloodPressure: "14/9",
-    spo2: "91%",
-    heartRate: "112 bpm",
-    nextAction: "Injection morphine à 14h",
-    lastUpdate: "Observation ajoutée il y a 12 min",
-    avatar: "SK",
-  },
-  {
-    id: "P-002",
-    name: "Mr David Mputu",
-    age: 62,
-    sex: "Homme",
-    room: "310A",
-    bed: "Lit 1",
-    status: "Surveillé",
-    service: "Neurologie",
-    temperature: "37.4°C",
-    bloodPressure: "13/8",
-    spo2: "95%",
-    heartRate: "90 bpm",
-    nextAction: "Contrôle glycémie dans 30 min",
-    lastUpdate: "Traitement validé",
-    avatar: "DM",
-  },
-  {
-    id: "P-003",
-    name: "Mme Amélie Tshibanda",
-    age: 29,
-    sex: "Femme",
-    room: "205C",
-    bed: "Lit 3",
-    status: "Stable",
-    service: "Pédiatrie",
-    temperature: "36.8°C",
-    bloodPressure: "11/7",
-    spo2: "98%",
-    heartRate: "76 bpm",
-    nextAction: "Vérifier perfusion à 16h",
-    lastUpdate: "Dose précédente administrée",
-    avatar: "AT",
-  },
-  {
-    id: "P-004",
-    name: "Mr Jean-Baptiste Lungu",
-    age: 54,
-    sex: "Homme",
-    room: "118A",
-    bed: "Lit 1",
-    status: "Critique",
-    service: "Urgences",
-    temperature: "39.1°C",
-    bloodPressure: "15/10",
-    spo2: "88%",
-    heartRate: "118 bpm",
-    nextAction: "Déclarer urgence + appel médecin",
-    lastUpdate: "Alarme cardiaque active",
-    avatar: "JL",
-  },
-  {
-    id: "P-005",
-    name: "Mme Clara Ndonda",
-    age: 33,
-    sex: "Femme",
-    room: "210B",
-    bed: "Lit 2",
-    status: "Surveillé",
-    service: "Chirurgie",
-    temperature: "37.0°C",
-    bloodPressure: "12/8",
-    spo2: "93%",
-    heartRate: "88 bpm",
-    nextAction: "Contrôle plaie à 15h",
-    lastUpdate: "Observation ajoutée il y a 8 min",
-    avatar: "CN",
-  },
-];
-
-const statusColors: Record<string, string> = {
-  Stable: "bg-emerald-100 text-emerald-700",
-  Surveillé: "bg-amber-100 text-amber-700",
-  Critique: "bg-red-100 text-red-700",
+const patientStatuses: Record<string, string> = {
+  "Fiche validée": "bg-emerald-100 text-emerald-700",
+  "En suivi": "bg-amber-100 text-amber-700",
+  "Fiche en attente": "bg-slate-100 text-slate-900",
+  "Fiche annulé": "bg-red-100 text-red-700",
 };
 
 export default function PatientAssignes() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("Tous");
-  const [roomFilter, setRoomFilter] = useState("Tous");
+  const [priorityFilter, setPriorityFilter] = useState("Tous");
   const [serviceFilter, setServiceFilter] = useState("Tous");
 
-  // Use mutable patients state so nurses can update vitals
-  const [patients, setPatients] = useState<(typeof patientData)[0][]>(patientData);
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
 
   // Modals state
-  const [selectedPatientForModal, setSelectedPatientForModal] = useState<(typeof patientData)[0] | null>(null);
+  const [selectedPatientForModal, setSelectedPatientForModal] = useState<PatientRecord | null>(null);
   const [openModal, setOpenModal] = useState<"file" | "observation" | "medication" | "urgency" | null>(null);
 
   // Form states
@@ -119,21 +32,21 @@ export default function PatientAssignes() {
   // Track urgent patients
   const [urgentPatients, setUrgentPatients] = useState<Set<string>>(new Set());
 
-  const rooms = useMemo(
-    () => ["Tous", ...new Set(patients.map((patient) => patient.room))],
+  const priorities = useMemo(
+    () => ["Tous", ...new Set(patients.map((patient) => patient.priority || "Normal"))],
     [patients]
   );
   const services = useMemo(
-    () => ["Tous", ...new Set(patients.map((patient) => patient.service))],
+    () => ["Tous", ...new Set(patients.map((patient) => patient.service || "Inconnu"))],
     [patients]
   );
 
   const counts = useMemo(
     () => ({
       total: patients.length,
-      critique: patients.filter((patient) => patient.status === "Critique").length,
-      surveille: patients.filter((patient) => patient.status === "Surveillé").length,
-      stable: patients.filter((patient) => patient.status === "Stable").length,
+      validated: patients.filter((patient) => patient.status === "Fiche validée").length,
+      inProgress: patients.filter((patient) => patient.status === "En suivi").length,
+      pending: patients.filter((patient) => patient.status === "Fiche en attente").length,
     }),
     [patients]
   );
@@ -158,46 +71,52 @@ export default function PatientAssignes() {
         const query = searchQuery.toLowerCase();
         const matchesSearch =
           patient.name.toLowerCase().includes(query) ||
-          patient.room.toLowerCase().includes(query) ||
-          patient.service.toLowerCase().includes(query);
+          (patient.priority || "").toLowerCase().includes(query) ||
+          (patient.service || "").toLowerCase().includes(query) ||
+          (patient.doctor || "").toLowerCase().includes(query);
         const matchesStatus =
           statusFilter === "Tous" || patient.status === statusFilter;
-        const matchesRoom = roomFilter === "Tous" || patient.room === roomFilter;
+        const matchesPriority = priorityFilter === "Tous" || patient.priority === priorityFilter;
         const matchesService =
           serviceFilter === "Tous" || patient.service === serviceFilter;
-        return matchesSearch && matchesStatus && matchesRoom && matchesService;
+        return matchesSearch && matchesStatus && matchesPriority && matchesService;
       })
       .sort((a, b) => {
-        const order = { Critique: 0, Surveillé: 1, Stable: 2 } as Record<string, number>;
-        return order[a.status] - order[b.status];
+        const order: Record<string, number> = {
+          "Fiche validée": 0,
+          "En suivi": 1,
+          "Fiche en attente": 2,
+          "Fiche annulé": 3,
+          Enregistré: 4,
+        };
+        return (order[a.status || "Enregistré"] || 5) - (order[b.status || "Enregistré"] || 5);
       });
-  }, [searchQuery, statusFilter, roomFilter, serviceFilter]);
+  }, [searchQuery, statusFilter, priorityFilter, serviceFilter]);
 
   // Handlers
-  const openFileModal = (patient: (typeof patientData)[0]) => {
+  const openFileModal = (patient: PatientRecord) => {
     setSelectedPatientForModal(patient);
     setOpenModal("file");
   };
 
-  const openObservationModal = (patient: (typeof patientData)[0]) => {
+  const openObservationModal = (patient: PatientRecord) => {
     setSelectedPatientForModal(patient);
     setObservationForm({ content: "", time: new Date().toLocaleTimeString("fr-FR") });
     setOpenModal("observation");
   };
 
-  const openMedicationModal = (patient: (typeof patientData)[0]) => {
+  const openMedicationModal = (patient: PatientRecord) => {
     setSelectedPatientForModal(patient);
     setMedicationForm({ medication: "", dosage: "", route: "IV", time: new Date().toLocaleTimeString("fr-FR"), notes: "" });
     setOpenModal("medication");
   };
 
-  const handleContactDoctor = (patient: (typeof patientData)[0]) => {
-    // Préparer les données du patient et rediriger vers MessagesInfirmier
-    const patientInfo = `Patient: ${patient.name} (${patient.room})\nÂge: ${patient.age} ans\nÉtat: ${patient.status}`;
+  const handleContactDoctor = (patient: PatientRecord) => {
+    const patientInfo = `Patient: ${patient.name} (${patient.priority || "Normal"})\nService: ${patient.service || "Inconnu"}\nMédecin: ${patient.doctor || "N/A"}\nStatut: ${patient.status}`;
     navigate("/nurse/messages", { state: { patientInfo, patientId: patient.id } });
   };
 
-  const openUrgencyModal = (patient: (typeof patientData)[0]) => {
+  const openUrgencyModal = (patient: PatientRecord) => {
     setSelectedPatientForModal(patient);
     setUrgencyForm({ reason: "", severity: "Haute", details: "" });
     setOpenModal("urgency");
@@ -206,23 +125,37 @@ export default function PatientAssignes() {
   // Vitals modal for nurses: quick entry with suggestions
   const [openVitalsPatientId, setOpenVitalsPatientId] = useState<string | null>(null);
   const [vitalsForm, setVitalsForm] = useState({ temperature: "", bloodPressure: "", spo2: "", heartRate: "", notes: "", alerts: [] as string[] });
-  // Reception queue: map patientId -> arrival timestamp (ms)
-  const [receptionQueue, setReceptionQueue] = useState<Record<string, number>>(() => {
-    const obj: Record<string, number> = {};
-    patientData.forEach(p => { obj[p.id] = Date.now(); });
-    return obj;
-  });
+  const [receptionQueue, setReceptionQueue] = useState<Record<string, number>>({});
 
-  const openVitalsModal = (patient: (typeof patientData)[0]) => {
+  const openVitalsModal = (patient: PatientRecord) => {
     setOpenVitalsPatientId(patient.id);
-    setVitalsForm({ temperature: patient.temperature || "", bloodPressure: patient.bloodPressure || "", spo2: patient.spo2 || "", heartRate: patient.heartRate || "", notes: "", alerts: [] });
+    setVitalsForm({
+      temperature: patient.temperature || "",
+      bloodPressure: patient.bloodPressure || "",
+      spo2: patient.spo2 || "",
+      heartRate: patient.heartRate || "",
+      notes: "",
+      alerts: [],
+    });
   };
 
   const handleSaveVitals = () => {
     if (!openVitalsPatientId) return;
-    setPatients((prev) => prev.map(p => p.id === openVitalsPatientId ? { ...p, temperature: vitalsForm.temperature, bloodPressure: vitalsForm.bloodPressure, spo2: vitalsForm.spo2, heartRate: vitalsForm.heartRate } : p));
-    // remove from quick-access bubbles so it disappears from the top row
-    setReceptionQueue(prev => {
+    setPatients((prev) => prev.map((p) =>
+      p.id === openVitalsPatientId
+        ? { ...p, temperature: vitalsForm.temperature, bloodPressure: vitalsForm.bloodPressure, spo2: vitalsForm.spo2, heartRate: vitalsForm.heartRate, status: "En suivi" }
+        : p
+    ));
+    updatePatientRecord({
+      id: openVitalsPatientId,
+      temperature: vitalsForm.temperature,
+      bloodPressure: vitalsForm.bloodPressure,
+      spo2: vitalsForm.spo2,
+      heartRate: vitalsForm.heartRate,
+      status: "En suivi",
+      lastUpdate: `Signes vitaux mis à jour le ${new Date().toLocaleTimeString()}`,
+    });
+    setReceptionQueue((prev) => {
       const n = { ...prev };
       delete n[openVitalsPatientId];
       return n;
@@ -235,6 +168,26 @@ export default function PatientAssignes() {
     setUrgentPatients((prev) => new Set(prev).add(selectedPatientForModal.id));
     setOpenModal(null);
   };
+
+  const refreshPatients = () => {
+    const loaded = getAllPatients().filter(
+      (patient) => patient.status === "Fiche validée" || patient.status === "En suivi"
+    );
+    setPatients(loaded);
+    setReceptionQueue(
+      loaded.reduce((acc: Record<string, number>, patient) => {
+        acc[patient.id] = new Date(patient.createdAt).getTime();
+        return acc;
+      }, {} as Record<string, number>)
+    );
+  };
+
+  useEffect(() => {
+    refreshPatients();
+    const handler = () => refreshPatients();
+    window.addEventListener("d7:patientReadyForVitals", handler as EventListener);
+    return () => window.removeEventListener("d7:patientReadyForVitals", handler as EventListener);
+  }, []);
 
   const handleSubmitObservation = () => {
     // Traiter l'observation (à intégrer avec un backend)
@@ -283,17 +236,17 @@ export default function PatientAssignes() {
               <p className="text-sm text-slate-500 dark:text-slate-400">Total patients</p>
               <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{counts.total}</p>
             </div>
-            <div className="rounded-3xl border border-red-200 bg-red-50 p-4 dark:border-red-700 dark:bg-red-900/10">
-              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-red-700 dark:text-red-200">Critiques</p>
-              <p className="mt-2 text-3xl font-semibold text-red-700">{counts.critique}</p>
-            </div>
             <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/10">
-              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-amber-700 dark:text-amber-200">Surveillés</p>
-              <p className="mt-2 text-3xl font-semibold text-amber-700">{counts.surveille}</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-amber-700 dark:text-amber-200">En attente</p>
+              <p className="mt-2 text-3xl font-semibold text-amber-700">{counts.pending}</p>
             </div>
             <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-900/10">
-              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-200">Stables</p>
-              <p className="mt-2 text-3xl font-semibold text-emerald-700">{counts.stable}</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-200">Validées</p>
+              <p className="mt-2 text-3xl font-semibold text-emerald-700">{counts.validated}</p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-700 dark:text-slate-200">En suivi</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{counts.inProgress}</p>
             </div>
           </div>
         </div>
@@ -320,7 +273,7 @@ export default function PatientAssignes() {
                   onChange={(event) => setStatusFilter(event.target.value)}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 >
-                  {['Tous', 'Critique', 'Surveillé', 'Stable'].map((status) => (
+                  {['Tous', 'Fiche en attente', 'Fiche validée', 'En suivi', 'Fiche annulé'].map((status) => (
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
@@ -329,12 +282,12 @@ export default function PatientAssignes() {
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Chambre</span>
                 <select
-                  value={roomFilter}
-                  onChange={(event) => setRoomFilter(event.target.value)}
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value)}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 >
-                  {rooms.map((room) => (
-                    <option key={room} value={room}>{room}</option>
+                  {priorities.map((priority) => (
+                    <option key={priority} value={priority}>{priority}</option>
                   ))}
                 </select>
               </label>
@@ -375,19 +328,25 @@ export default function PatientAssignes() {
 
       {/* Quick access bubbles (patients envoyés par la réception) */}
       <div className="mt-6 mb-4 flex items-center gap-3 overflow-x-auto py-2">
-        {patients.filter(p => !!receptionQueue[p.id]).map((p) => {
+        {patients.filter((p) => !!receptionQueue[p.id]).map((p) => {
           const isUrg = urgentPatients.has(p.id);
-          const pillClass = isUrg ? "bg-red-100 text-red-700" : statusColors[p.status] || "bg-slate-100 text-slate-900";
+          const pillClass = isUrg ? "bg-red-100 text-red-700" : patientStatuses[p.status || "Fiche en attente"] || "bg-slate-100 text-slate-900";
+          const initials = p.name
+            .split(" ")
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
           return (
             <button
               key={p.id}
               onClick={() => openVitalsModal(p)}
               className={`flex-shrink-0 inline-flex items-center gap-3 rounded-full border px-3 py-2 ${pillClass} hover:opacity-95`}
             >
-              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-900">{p.avatar}</div>
+              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-900">{p.avatar || initials}</div>
               <div className="text-left">
                 <div className="text-sm font-semibold">{p.name}</div>
-                <div className="text-xs">{p.service} • <span className="font-medium">{p.status}</span></div>
+                <div className="text-xs">{p.service || "Accueil"} • <span className="font-medium">{p.status}</span></div>
                 <div className="text-xs text-slate-500">{formatRelativeTime(receptionQueue[p.id])}</div>
               </div>
             </button>
@@ -398,7 +357,7 @@ export default function PatientAssignes() {
       <section className="mt-6 space-y-4">
         {filteredPatients.map((patient) => {
           const isUrgent = urgentPatients.has(patient.id);
-          const patientStatus = isUrgent ? "Critique" : patient.status;
+          const patientStatus = isUrgent ? "Critique" : patient.status || "Fiche en attente";
           
           return (
             <article
@@ -413,11 +372,11 @@ export default function PatientAssignes() {
                   <div>
                     <p className="text-lg font-semibold text-slate-900 dark:text-white">{patient.name}</p>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      {patient.age} ans • {patient.sex} • Chambre {patient.room}, {patient.bed}
+                      {patient.gender || "Sexe inconnu"} • Service {patient.service || "Inconnu"} • Dr {patient.doctor || "N/A"}
                     </p>
                   </div>
                 </div>
-                <span className={`inline-flex items-center rounded-full px-3 py-2 text-sm font-semibold ${isUrgent ? "bg-red-100 text-red-700" : statusColors[patientStatus]}`}>
+                <span className={`inline-flex items-center rounded-full px-3 py-2 text-sm font-semibold ${isUrgent ? "bg-red-100 text-red-700" : patientStatuses[patientStatus] || "bg-slate-100 text-slate-900"}`}>
                   {patientStatus}
                 </span>
               </div>
@@ -509,10 +468,10 @@ export default function PatientAssignes() {
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
                 <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Infos essentielles</p>
                 <div className="mt-4 space-y-2 text-sm text-slate-900 dark:text-white">
-                  <p>Âge: <span className="font-semibold">{selectedPatientForModal.age} ans</span></p>
-                  <p>Sexe: <span className="font-semibold">{selectedPatientForModal.sex}</span></p>
-                  <p>Chambre: <span className="font-semibold">{selectedPatientForModal.room}</span></p>
-                  <p>Service: <span className="font-semibold">{selectedPatientForModal.service}</span></p>
+                  <p>Date de naissance: <span className="font-semibold">{selectedPatientForModal.dob || "Non renseignée"}</span></p>
+                  <p>Sexe: <span className="font-semibold">{selectedPatientForModal.gender || "Non spécifié"}</span></p>
+                  <p>Service: <span className="font-semibold">{selectedPatientForModal.service || "Inconnu"}</span></p>
+                  <p>Médecin: <span className="font-semibold">{selectedPatientForModal.doctor || "N/A"}</span></p>
                   <p>État: <span className="font-semibold">{selectedPatientForModal.status}</span></p>
                 </div>
               </div>

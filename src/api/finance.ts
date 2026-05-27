@@ -77,6 +77,11 @@ export const createPaymentRequest = (payload: Partial<PaymentRequest>) => {
   const arr = read(REQ_KEY);
   arr.unshift(rec);
   write(REQ_KEY, arr);
+  try {
+    window.dispatchEvent(new CustomEvent("d7:paymentRequest", { detail: rec }));
+  } catch {
+    // ignore browser dispatch errors
+  }
   return rec;
 };
 

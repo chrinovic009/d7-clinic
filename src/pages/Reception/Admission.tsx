@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { findPatientByEmail, findPatientByName, findPatientByPhone, saveAdmission, savePatientRecord, addPatientRelation, createConversationForPatient, addMessageToConversation } from "../../api/reception";
+import { createPaymentRequest } from "../../api/finance";
+import { findPatientByEmail, findPatientByName, findPatientByPhone, savePatientRecord, addPatientRelation, createConversationForPatient, addMessageToConversation, updatePatientRecord } from "../../api/reception";
 
 const services = [
   "Médecine générale",
@@ -11,6 +12,17 @@ const services = [
   "Chirurgie",
   "Neurologie"
 ];
+
+const servicePrices: Record<string, number> = {
+  "Médecine générale": 15000,
+  Cardiologie: 30000,
+  Pédiatrie: 12000,
+  Radiologie: 25000,
+  Laboratoire: 10000,
+  Urgences: 20000,
+  Chirurgie: 50000,
+  Neurologie: 35000,
+};
 
 const doctorsByService: Record<string, string[]> = {
   "Médecine générale": ["Dr Amani", "Dr Kalombo"],
@@ -25,13 +37,9 @@ const doctorsByService: Record<string, string[]> = {
 
 type ModalStep =
   | null
-  | "payment-question"
-  | "payment-details"
-  | "awaiting-payment"
-  | "send-confirmation"
-  | "waiting-list"
   | "confirm-linkage"
   | "success";
+
 
 const relationOptions = [
   "frère",
@@ -71,6 +79,8 @@ const Admission: React.FC = () => {
     contacts: [] as any[],
     allergies: [] as string[],
     documents: [] as any[],
+    amountDue: servicePrices[services[0]] || 0,
+    paymentRequestId: "",
   });
   const [existingPatient, setExistingPatient] = useState<any>(null);
   const [phoneMatchPatient, setPhoneMatchPatient] = useState<any>(null);
@@ -78,8 +88,7 @@ const Admission: React.FC = () => {
   const [relationshipPatient, setRelationshipPatient] = useState<any>(null);
   const [relationship, setRelationship] = useState("");
   const [modalStep, setModalStep] = useState<ModalStep>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
+
 
   const age = useMemo(() => {
     if (!form.dob) return "";
@@ -119,6 +128,7 @@ const Admission: React.FC = () => {
     if (!form.doctor) {
       setForm((f: any) => ({ ...f, doctor: doctorsByService[f.service]?.[0] || "" }));
     }
+    setForm((f: any) => ({ ...f, amountDue: servicePrices[f.service] || 0 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.service]);
 
@@ -141,8 +151,6 @@ const Admission: React.FC = () => {
     setRelationshipPatient(null);
     setRelationship("");
     setModalStep(null);
-    setPaymentAmount("");
-    setPaymentMethod("");
     setForm({
       category: "P",
       name: "",
@@ -170,10 +178,6 @@ const Admission: React.FC = () => {
   const contactMatchPatient = phoneMatchPatient || emailMatchPatient;
 
   const continueAdmissionAfterLinkCheck = () => {
-    if (form.category === "P") {
-      setModalStep("payment-question");
-      return;
-    }
     registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
     setModalStep("success");
   };
@@ -190,30 +194,7 @@ const Admission: React.FC = () => {
       return;
     }
 
-    if (form.category === "P") {
-      setModalStep("payment-question");
-    } else {
-      registerPatientAndNotify();
-      setModalStep("success");
-    }
-  };
-
-  const handlePaymentChoice = (paid: boolean) => {
-    setModalStep(paid ? "payment-details" : "awaiting-payment");
-  };
-
-  const handleAwaitingDecision = (sendToInfirmier: boolean) => {
-    if (sendToInfirmier) {
-      registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
-      setModalStep("send-confirmation");
-    } else {
-      setModalStep("waiting-list");
-    }
-  };
-
-  const handleConfirmPayment = async () => {
-    await saveAdmission(form);
-    await registerPatientAndNotify(relationshipPatient && relationship ? relationship : undefined);
+    registerPatientAndNotify();
     setModalStep("success");
   };
 
@@ -225,7 +206,39 @@ const Admission: React.FC = () => {
         email: form.email,
         dob: form.dob,
         gender: form.gender,
+        admissionType: form.admissionType,
+        arrival: form.arrival,
+        receptionist: form.receptionist,
+        service: form.service,
+        doctor: form.doctor,
+        priority: form.priority,
+        insurance: form.insurance,
+        contacts: form.contacts,
+        allergies: form.allergies,
+        status: "Fiche en attente",
+        amountDue: form.amountDue,
+        paymentStatus: "pending",
         relations: relation && relationshipPatient ? [{ patientId: relationshipPatient.id, name: relationshipPatient.name, relation }] : [],
+      });
+
+      // Créer une demande de paiement immédiatement et envoyer au caissier
+      const paymentRequest = createPaymentRequest({
+        patientId: patient.id,
+        patientName: patient.name,
+        dossierNumber: form.dossierNumber,
+        service: form.service,
+        act: form.admissionType,
+        amount: form.amountDue || 0,
+        priority: form.priority === "Urgence" ? "urgent" : "normal",
+        requestedBy: form.receptionist,
+        status: "pending",
+      });
+
+      updatePatientRecord({
+        id: patient.id,
+        paymentRequestId: paymentRequest.id,
+        paymentStatus: "pending",
+        status: "Fiche en attente",
       });
 
       if (relation && relationshipPatient) {
@@ -365,7 +378,10 @@ const Admission: React.FC = () => {
                 {form.contacts.map((c: any, i: number) => (
                   <div key={i} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
                     <input placeholder="Nom" value={c.name} onChange={(e) => updateContact(i, "name", e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <input placeholder="Relation" value={c.relation} onChange={(e) => updateContact(i, "relation", e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <select value={c.relation} onChange={(e) => updateContact(i, "relation", e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Sélectionner relation</option>
+                      {relationOptions.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+                    </select>
                     <input placeholder="Téléphone" value={c.phone} onChange={(e) => updateContact(i, "phone", e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <input placeholder="Adresse" value={c.address} onChange={(e) => updateContact(i, "address", e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
@@ -433,16 +449,6 @@ const Admission: React.FC = () => {
       {modalStep && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-xl rounded-xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-gray-200 dark:border-slate-700">
-            {modalStep === "payment-question" && (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Le patient a-t-il déjà payé ?</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Pour un particulier, confirmez si le paiement a déjà été réalisé.</p>
-                <div className="mt-4 flex gap-3">
-                  <button onClick={() => handlePaymentChoice(true)} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Oui</button>
-                  <button onClick={() => handlePaymentChoice(false)} className="rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm">Non</button>
-                </div>
-              </>
-            )}
             {modalStep === "confirm-linkage" && relationshipPatient && (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Patient déjà connu</h3>
@@ -469,56 +475,10 @@ const Admission: React.FC = () => {
               </>
             )}
 
-            {modalStep === "payment-details" && (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Paiement reçu</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Enregistrez le montant et le moyen de paiement.</p>
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <input type="number" placeholder="Montant payé" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <input placeholder="Moyen de paiement" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <button disabled={!paymentAmount || !paymentMethod} onClick={handleConfirmPayment} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm disabled:opacity-50">Enregistrer le paiement</button>
-                  <button onClick={() => setModalStep(null)} className="rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm">Annuler</button>
-                </div>
-              </>
-            )}
-
-            {modalStep === "awaiting-payment" && (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{form.name || "Le patient"} est en attente de paiement</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Envoyez quand même la fiche à l'infirmier ?</p>
-                <div className="mt-4 flex gap-3">
-                  <button onClick={() => handleAwaitingDecision(true)} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Oui</button>
-                  <button onClick={() => handleAwaitingDecision(false)} className="rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm">Non</button>
-                </div>
-              </>
-            )}
-
-            {modalStep === "send-confirmation" && (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Fiche envoyée à l'infirmier</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">La fiche de {form.name || 'ce patient'} a été envoyée en simulation.</p>
-                <div className="mt-4 flex gap-3">
-                  <button onClick={() => { setModalStep(null); resetForm(); }} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Fermer</button>
-                </div>
-              </>
-            )}
-
-            {modalStep === "waiting-list" && (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Fiche en attente</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Retrouvez la fiche de {form.name || 'ce patient'} dans l'historique des fiches en attente.</p>
-                <div className="mt-4 flex gap-3">
-                  <button onClick={() => { setModalStep(null); resetForm(); }} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Fermer</button>
-                </div>
-              </>
-            )}
-
             {modalStep === "success" && (
               <>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sauvegarde simulée</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">La fiche a été enregistrée en simulation.</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Admission enregistrée</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">La fiche de {form.name || 'ce patient'} a été enregistrée. Une notification de paiement a été envoyée au caissier.</p>
                 <div className="mt-4 flex gap-3">
                   <button onClick={() => { setModalStep(null); resetForm(); }} className="rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 text-sm">Fermer</button>
                 </div>
